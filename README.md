@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Campsoft Inventory Migration
 
 This repository now contains two application layers:
@@ -95,3 +96,6 @@ http://127.0.0.1:3000
 - External news loading was intentionally left out of the new dashboard to avoid reintroducing slow blocking requests.
 - The Streamlit app is still present, but it is no longer the recommended entry point.
 - The migration prioritizes replacing the UI runtime first and preserving the current business rules.
+=======
+# SMALL
+>>>>>>> eec62ebe96db64388ca3de44a6d9321bb1cac75a
