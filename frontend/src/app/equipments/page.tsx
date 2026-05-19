@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
+import { HistoryIcon } from "@/components/action-icons";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
 import {
   equipmentStatusTone,
@@ -67,7 +68,7 @@ function formatDate(value: string) {
 function groupAssignments(items: EquipmentHistoryItem[]): UnassignOption[] {
   const map = new Map<number, UnassignOption>();
 
-  for (const item of items) {
+  for (const item of items.filter((entry) => entry.movementType === "Atribuicao")) {
     const current = map.get(item.employeeId);
     if (current) {
       current.quantity += Number(item.quantity);
@@ -93,6 +94,8 @@ export default function EquipmentsPage() {
   const [history, setHistory] = useState<EquipmentHistoryItem[]>([]);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<number>(0);
   const [historyEquipmentId, setHistoryEquipmentId] = useState<number>(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ search: "", status: "Todos" });
   const [form, setForm] = useState<EquipmentForm>(emptyEquipmentForm);
   const [assignForm, setAssignForm] = useState<AssignForm>(emptyAssignForm);
@@ -161,14 +164,22 @@ export default function EquipmentsPage() {
     async function loadHistory() {
       if (!historyEquipmentId) {
         setHistory([]);
+        setHistoryError(null);
+        setHistoryLoading(false);
         return;
       }
+
+      setHistoryLoading(true);
+      setHistoryError(null);
 
       try {
         const payload = await getJson<EquipmentHistoryItem[]>(`/equipments/${historyEquipmentId}/history`);
         setHistory(payload);
-      } catch {
+      } catch (caughtError) {
         setHistory([]);
+        setHistoryError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível carregar o histórico do equipamento.");
+      } finally {
+        setHistoryLoading(false);
       }
     }
 
@@ -186,6 +197,17 @@ export default function EquipmentsPage() {
 
     window.setTimeout(() => {
       document.getElementById("assign-equipment-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  }
+
+  function focusHistorySection(equipmentId: number) {
+    setHistoryEquipmentId(equipmentId);
+
+    window.setTimeout(() => {
+      document.getElementById("history-equipment-card")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -262,6 +284,16 @@ export default function EquipmentsPage() {
 
   async function reloadWithMessage(nextMessage: string) {
     await loadPage();
+    if (historyEquipmentId) {
+      try {
+        const payload = await getJson<EquipmentHistoryItem[]>(`/equipments/${historyEquipmentId}/history`);
+        setHistory(payload);
+        setHistoryError(null);
+      } catch (caughtError) {
+        setHistory([]);
+        setHistoryError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível carregar o histórico do equipamento.");
+      }
+    }
     setMessage(nextMessage);
     setError(null);
   }
@@ -296,6 +328,8 @@ export default function EquipmentsPage() {
       await deleteJson(`/equipments/${selectedEquipmentId}`);
       setSelectedEquipmentId(0);
       setHistoryEquipmentId(0);
+      setHistory([]);
+      setHistoryError(null);
       await reloadWithMessage("Equipamento excluído com sucesso.");
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível excluir o equipamento.");
@@ -413,6 +447,15 @@ export default function EquipmentsPage() {
                           Desatribuir
                         </button>
                       ) : null}
+                      <button
+                        className="icon-button success"
+                        type="button"
+                        onClick={() => focusHistorySection(item.id)}
+                        title="Ver histórico"
+                        aria-label={`Ver histórico do equipamento ${item.name}`}
+                      >
+                        <HistoryIcon className="button-icon-svg" />
+                      </button>
                       {item.availableQuantity <= 0 && Number(item.totalQuantity) - Number(item.availableQuantity) <= 0 ? (
                         <span className="action-placeholder">Sem ação</span>
                       ) : null}
@@ -590,52 +633,60 @@ export default function EquipmentsPage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Histórico de equipamentos" copy="Acompanhe as atribuições registradas para cada item.">
-        <div className="input-group" style={{ marginBottom: "1rem" }}>
-          <label htmlFor="history-equipment">Equipamento</label>
-          <select
-            id="history-equipment"
-            value={historyEquipmentId}
-            onChange={(event) => setHistoryEquipmentId(Number(event.target.value))}
-          >
-            <option value={0}>Selecione um equipamento</option>
-            {equipments.map((item) => (
-              <option key={item.id} value={item.id}>
-                #{item.id} - {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {history.length === 0 ? (
-          <div className="empty-state">Nenhum registro de histórico foi carregado para o equipamento selecionado.</div>
-        ) : (
-          <div className="table-shell">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Colaborador</th>
-                  <th>Escritório</th>
-                  <th>Quantidade</th>
-                  <th>Movimentação</th>
-                  <th>Criado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.employeeName}</td>
-                    <td>{item.office}</td>
-                    <td>{item.quantity}</td>
-                    <td>{translateMovementType(item.movementType)}</td>
-                    <td>{item.createdAt.slice(0, 19).replace("T", " ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div id="history-equipment-card">
+        <SectionCard title="Histórico de equipamentos" copy="Acompanhe as atribuições e devoluções registradas para cada item.">
+          <div className="input-group" style={{ marginBottom: "1rem" }}>
+            <label htmlFor="history-equipment">Equipamento</label>
+            <select
+              id="history-equipment"
+              value={historyEquipmentId}
+              onChange={(event) => setHistoryEquipmentId(Number(event.target.value))}
+            >
+              <option value={0}>Selecione um equipamento</option>
+              {equipments.map((item) => (
+                <option key={item.id} value={item.id}>
+                  #{item.id} - {item.name}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
-      </SectionCard>
+
+          {historyLoading ? (
+            <div className="empty-state">Carregando histórico...</div>
+          ) : historyError ? (
+            <div className="message error">{historyError}</div>
+          ) : historyEquipmentId === 0 ? (
+            <div className="empty-state">Selecione um equipamento para ver o histórico.</div>
+          ) : history.length === 0 ? (
+            <div className="empty-state">Nenhum registro de histórico foi encontrado para o equipamento selecionado.</div>
+          ) : (
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Colaborador</th>
+                    <th>Escritório</th>
+                    <th>Quantidade</th>
+                    <th>Movimentação</th>
+                    <th>Criado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.employeeName}</td>
+                      <td>{item.office}</td>
+                      <td>{item.quantity}</td>
+                      <td>{translateMovementType(item.movementType)}</td>
+                      <td>{item.createdAt.slice(0, 19).replace("T", " ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      </div>
 
       {unassignEquipment ? (
         <div className="modal-backdrop" role="presentation" onClick={closeUnassignDialog}>

@@ -101,6 +101,45 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def _log_equipment_assignment_event(
+    connection: sqlite3.Connection,
+    *,
+    equipment_id: int,
+    equipment_name: str,
+    employee_id: int,
+    employee_name: str,
+    office: str,
+    quantity: int,
+    movement_type: str,
+    created_at: str | None = None,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO equipment_assignments (
+            equipmentId,
+            equipmentName,
+            employeeId,
+            employeeName,
+            office,
+            quantity,
+            movementType,
+            createdAt
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            equipment_id,
+            equipment_name,
+            employee_id,
+            employee_name,
+            office,
+            quantity,
+            movement_type,
+            created_at or datetime.utcnow().isoformat(),
+        ),
+    )
+
+
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -350,7 +389,9 @@ def list_employees_with_assignments() -> list[dict[str, Any]]:
             ea.quantity,
             ea.movementType
         FROM Funcionarios f
-        LEFT JOIN equipment_assignments ea ON f.id = ea.employeeId
+        LEFT JOIN equipment_assignments ea
+            ON f.id = ea.employeeId
+            AND ea.movementType = 'Atribuicao'
         ORDER BY f.escritorio ASC, f.nome ASC
     """
 
@@ -708,30 +749,16 @@ def assign_equipment(equipment_id: int, employee_id: int, quantity: int, office:
                 "UPDATE equipments SET availableQuantity = ?, status = ? WHERE id = ?",
                 (next_available_quantity, next_status, equipment_id),
             )
-            cursor.execute(
-                """
-                INSERT INTO equipment_assignments (
-                    equipmentId,
-                    equipmentName,
-                    employeeId,
-                    employeeName,
-                    office,
-                    quantity,
-                    movementType,
-                    createdAt
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    equipment["id"],
-                    equipment["name"],
-                    employee["id"],
-                    employee["nome"],
-                    office,
-                    quantity,
-                    "Atribuicao",
-                    created_at,
-                ),
+            _log_equipment_assignment_event(
+                connection,
+                equipment_id=equipment["id"],
+                equipment_name=equipment["name"],
+                employee_id=employee["id"],
+                employee_name=employee["nome"],
+                office=office,
+                quantity=quantity,
+                movement_type="Atribuicao",
+                created_at=created_at,
             )
             connection.commit()
         except Exception:
@@ -753,7 +780,12 @@ def unassign_all(employee_id: int) -> None:
         try:
             cursor.execute("BEGIN")
             rows = cursor.execute(
-                "SELECT equipmentId, quantity FROM equipment_assignments WHERE employeeId = ?",
+                """
+                SELECT id, equipmentId, equipmentName, employeeName, office, quantity
+                FROM equipment_assignments
+                WHERE employeeId = ? AND movementType = 'Atribuicao'
+                ORDER BY id ASC
+                """,
                 (employee_id,),
             ).fetchall()
             for row in rows:
@@ -771,9 +803,22 @@ def unassign_all(employee_id: int) -> None:
                     (row["quantity"], row["quantity"], row["equipmentId"]),
                 )
             cursor.execute(
-                "DELETE FROM equipment_assignments WHERE employeeId = ?",
+                "DELETE FROM equipment_assignments WHERE employeeId = ? AND movementType = 'Atribuicao'",
                 (employee_id,),
             )
+            created_at = datetime.utcnow().isoformat()
+            for row in rows:
+                _log_equipment_assignment_event(
+                    connection,
+                    equipment_id=int(row["equipmentId"]),
+                    equipment_name=str(row["equipmentName"]),
+                    employee_id=employee_id,
+                    employee_name=str(row["employeeName"]),
+                    office=str(row["office"]),
+                    quantity=int(row["quantity"]),
+                    movement_type="Devolucao",
+                    created_at=created_at,
+                )
             connection.commit()
         except Exception:
             connection.rollback()
@@ -793,9 +838,9 @@ def unassign_item(employee_id: int, equipment_id: int, quantity: int) -> None:
             cursor.execute("BEGIN")
             rows = cursor.execute(
                 """
-                SELECT id, quantity
+                SELECT id, equipmentName, employeeName, office, quantity
                 FROM equipment_assignments
-                WHERE employeeId = ? AND equipmentId = ?
+                WHERE employeeId = ? AND equipmentId = ? AND movementType = 'Atribuicao'
                 ORDER BY id ASC
                 """,
                 (employee_id, equipment_id),
@@ -826,6 +871,17 @@ def unassign_item(employee_id: int, equipment_id: int, quantity: int) -> None:
                 "UPDATE equipments SET availableQuantity = availableQuantity + ?, status = 'Em estoque' WHERE id = ?",
                 (quantity, equipment_id),
             )
+            if rows:
+                _log_equipment_assignment_event(
+                    connection,
+                    equipment_id=equipment_id,
+                    equipment_name=str(rows[0]["equipmentName"]),
+                    employee_id=employee_id,
+                    employee_name=str(rows[0]["employeeName"]),
+                    office=str(rows[0]["office"]),
+                    quantity=quantity,
+                    movement_type="Devolucao",
+                )
             connection.commit()
         except Exception:
             connection.rollback()

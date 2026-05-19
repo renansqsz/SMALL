@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import { EyeIcon, PencilIcon, TrashIcon } from "@/components/action-icons";
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
 import { StatusPill } from "@/components/status-pill";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
-import { notebookStatusTone, translateNotebookStatus } from "@/lib/pt-br";
+import { notebookStatusTone, translateNotebookCondition, translateNotebookStatus } from "@/lib/pt-br";
 import type { Notebook } from "@/lib/types";
 
 type NotebookForm = Omit<Notebook, "id">;
@@ -28,6 +29,10 @@ const notebookDefaults: NotebookForm = {
   entryDate: new Date().toISOString().slice(0, 10),
 };
 
+function formatNotebookDate(value: string) {
+  return value ? value.slice(0, 10) : "-";
+}
+
 export default function NotebooksPage() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [selectedId, setSelectedId] = useState<number>(0);
@@ -35,6 +40,7 @@ export default function NotebooksPage() {
   const [form, setForm] = useState<NotebookForm>(notebookDefaults);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
 
   async function loadNotebooks() {
     const payload = await getJson<Notebook[]>("/notebooks");
@@ -51,6 +57,7 @@ export default function NotebooksPage() {
       setForm(notebookDefaults);
       return;
     }
+
     setForm({
       brand: current.brand,
       model: current.model,
@@ -70,7 +77,7 @@ export default function NotebooksPage() {
   }, [notebooks, selectedId]);
 
   const filteredNotebooks = notebooks.filter((item) => {
-    const matchesSearch = [item.brand, item.model, item.serialNumber, item.processor]
+    const matchesSearch = [item.brand, item.model, item.serialNumber, item.processor, item.gpu, item.location]
       .join(" ")
       .toLowerCase()
       .includes(filters.search.toLowerCase());
@@ -78,9 +85,24 @@ export default function NotebooksPage() {
     return matchesSearch && matchesStatus;
   });
 
+  function focusNotebook(notebookId: number) {
+    setSelectedId(notebookId);
+    setMessage(null);
+    setError(null);
+    setIsCatalogOpen(false);
+
+    window.setTimeout(() => {
+      document.getElementById("notebook-form-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  }
+
   async function saveNotebook(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
     try {
       if (selectedId) {
         await putJson(`/notebooks/${selectedId}`, form);
@@ -89,21 +111,21 @@ export default function NotebooksPage() {
         await postJson("/notebooks", form);
         setMessage("Portátil criado com sucesso.");
       }
+
       await loadNotebooks();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível salvar o notebook.");
     }
   }
 
-  async function removeNotebook() {
-    if (!selectedId) {
-      setError("Selecione um notebook primeiro.");
-      return;
-    }
+  async function handleDeleteNotebook(notebookId: number) {
+    setError(null);
 
     try {
-      await deleteJson(`/notebooks/${selectedId}`);
-      setSelectedId(0);
+      await deleteJson(`/notebooks/${notebookId}`);
+      if (selectedId === notebookId) {
+        setSelectedId(0);
+      }
       setMessage("Portátil excluído com sucesso.");
       await loadNotebooks();
     } catch (caughtError) {
@@ -111,27 +133,71 @@ export default function NotebooksPage() {
     }
   }
 
+  function openCatalog() {
+    setIsCatalogOpen(true);
+  }
+
+  function closeCatalog() {
+    setIsCatalogOpen(false);
+  }
+
+  function renderNotebookActions(item: Notebook) {
+    return (
+      <div className="table-actions">
+        <button
+          className="icon-button primary"
+          type="button"
+          onClick={() => focusNotebook(item.id)}
+          title="Editar notebook"
+          aria-label={`Editar notebook ${item.brand} ${item.model}`}
+        >
+          <PencilIcon className="button-icon-svg" />
+        </button>
+        <button
+          className="icon-button danger"
+          type="button"
+          onClick={() => void handleDeleteNotebook(item.id)}
+          title="Excluir notebook"
+          aria-label={`Excluir notebook ${item.brand} ${item.model}`}
+        >
+          <TrashIcon className="button-icon-svg" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <ProtectedPage
       title="Notebooks"
       description="Gerencie os notebooks da empresa, filtre, crie, edite e visualize o histórico de alocações."
       actions={
-        <button className="secondary-button" type="button" onClick={() => void downloadFile(" / exports / notebooks", "notebooks.xlsx")}>
+        <button className="secondary-button" type="button" onClick={() => void downloadFile("/exports/notebooks", "notebooks.xlsx")}>
           Exportar Excel
-        </button >
+        </button>
       }
     >
       {error ? <div className="message error">{error}</div> : null}
       {message ? <div className="message success">{message}</div> : null}
 
-      <SectionCard title="Inventário de portáteis" copy="Filtre o catálogo atual por status ou termos de hardware.">
+      <SectionCard
+        title="Inventário de portáteis"
+        copy="Filtre o catálogo atual por status ou termos de hardware."
+        actions={
+          <button className="secondary-button" type="button" onClick={openCatalog}>
+            <span className="button-icon" aria-hidden="true">
+              <EyeIcon className="button-icon-svg" />
+            </span>
+            Visualizar todos os notebooks
+          </button>
+        }
+      >
         <div className="toolbar notebook-toolbar">
           <div className="toolbar-group">
             <div className="input-group">
               <label htmlFor="notebook-search">Pesquisar</label>
               <input
                 id="notebook-search"
-                placeholder="Marca, modelo, serial ou processador"
+                placeholder="Marca, modelo, serial, processador, GPU ou localização"
                 value={filters.search}
                 onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
               />
@@ -162,123 +228,212 @@ export default function NotebooksPage() {
                 <th>Processador</th>
                 <th>RAM</th>
                 <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filteredNotebooks.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.id}</td>
-                  <td>{item.brand}</td>
-                  <td>{item.model}</td>
-                  <td>{item.processor}</td>
-                  <td>{item.ramTotal} GB</td>
-                  <td>
-                    <StatusPill tone={notebookStatusTone(item.status)} value={translateNotebookStatus(item.status)} />
+              {filteredNotebooks.length === 0 ? (
+                <tr>
+                  <td colSpan={7}>
+                    <div className="empty-state">Nenhum notebook encontrado.</div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredNotebooks.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{item.brand}</td>
+                    <td>{item.model}</td>
+                    <td>{item.processor}</td>
+                    <td>{item.ramTotal} GB</td>
+                    <td>
+                      <StatusPill tone={notebookStatusTone(item.status)} value={translateNotebookStatus(item.status)} />
+                    </td>
+                    <td>{renderNotebookActions(item)}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </SectionCard>
 
-      <SectionCard title="Criar ou editar notebook" copy="Escolha um notebook existente ou abra um novo formulário.">
-        <div className="input-group">
-          <label htmlFor="notebook-picker">Registro atual</label>
-          <select id="notebook-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
-            <option value={0}>Novo portátil</option>
-            {notebooks.map((item) => (
-              <option key={item.id} value={item.id}>
-                #{item.id} - {item.brand} {item.model}
-              </option>
-            ))}
-          </select>
+      <div id="notebook-form-card">
+        <SectionCard title="Criar ou editar notebook" copy="Escolha um notebook existente ou abra um novo formulário.">
+          <div className="input-group">
+            <label htmlFor="notebook-picker">Registro atual</label>
+            <select id="notebook-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
+              <option value={0}>Novo portátil</option>
+              {notebooks.map((item) => (
+                <option key={item.id} value={item.id}>
+                  #{item.id} - {item.brand} {item.model} | {item.processor} | {item.location}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <form className="stack" onSubmit={saveNotebook}>
+            <div className="input-grid notebook-form-grid">
+              <div className="input-group">
+                <label htmlFor="notebook-brand">Marca</label>
+                <input id="notebook-brand" value={form.brand} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-model">Modelo</label>
+                <input id="notebook-model" value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-serial">Número de série</label>
+                <input id="notebook-serial" value={form.serialNumber} onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-processor">Processador</label>
+                <input id="notebook-processor" value={form.processor} onChange={(event) => setForm((current) => ({ ...current, processor: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-gpu">GPU</label>
+                <input id="notebook-gpu" value={form.gpu} onChange={(event) => setForm((current) => ({ ...current, gpu: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-screen">Tela</label>
+                <input id="notebook-screen" value={form.screenSize} onChange={(event) => setForm((current) => ({ ...current, screenSize: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-ram">RAM total</label>
+                <input id="notebook-ram" type="number" min={1} value={form.ramTotal} onChange={(event) => setForm((current) => ({ ...current, ramTotal: Number(event.target.value) }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-ram-sticks">Pentes de RAM</label>
+                <input id="notebook-ram-sticks" type="number" min={1} value={form.ramSticks} onChange={(event) => setForm((current) => ({ ...current, ramSticks: Number(event.target.value) }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-storage-type">Tipo de armazenamento</label>
+                <select id="notebook-storage-type" value={form.storageType} onChange={(event) => setForm((current) => ({ ...current, storageType: event.target.value }))}>
+                  <option value="SSD">SSD</option>
+                  <option value="HD">HD</option>
+                  <option value="NVMe">NVMe</option>
+                  <option value="SSD + HD">SSD + HD</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-storage-capacity">Capacidade de armazenamento</label>
+                <input id="notebook-storage-capacity" value={form.storageCapacity} onChange={(event) => setForm((current) => ({ ...current, storageCapacity: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-condition">Condição</label>
+                <select id="notebook-condition" value={form.condition} onChange={(event) => setForm((current) => ({ ...current, condition: event.target.value }))}>
+                  <option value="Novo">Novo</option>
+                  <option value="Bom">Bom</option>
+                  <option value="Razoavel">Razoável</option>
+                  <option value="Com Defeito">Com defeito</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-status-field">Status</label>
+                <select id="notebook-status-field" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                  <option value="Em Estoque">Em estoque</option>
+                  <option value="Em Uso">Em uso</option>
+                  <option value="Manutencao">Manutenção</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-location">Localização</label>
+                <input id="notebook-location" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
+              </div>
+              <div className="input-group">
+                <label htmlFor="notebook-entry-date">Data de entrada</label>
+                <input id="notebook-entry-date" type="date" value={form.entryDate} onChange={(event) => setForm((current) => ({ ...current, entryDate: event.target.value }))} />
+              </div>
+            </div>
+
+            <div className="inline-actions">
+              <button className="primary-button" type="submit">
+                {selectedId ? "Atualizar portátil" : "Criar portátil"}
+              </button>
+              <button className="danger-button" type="button" onClick={() => void handleDeleteNotebook(selectedId)} disabled={!selectedId}>
+                Excluir selecionado
+              </button>
+            </div>
+          </form>
+        </SectionCard>
+      </div>
+
+      {isCatalogOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeCatalog}>
+          <div
+            className="modal-card notebook-catalog-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notebook-catalog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h3 id="notebook-catalog-title" className="modal-title">
+                  Todos os notebooks
+                </h3>
+                <p className="panel-copy">Visualização completa do inventário, com todos os campos usados na edição.</p>
+              </div>
+              <button className="ghost-button modal-close" type="button" onClick={closeCatalog}>
+                Fechar
+              </button>
+            </div>
+
+            {notebooks.length === 0 ? (
+              <div className="empty-state">Nenhum notebook cadastrado.</div>
+            ) : (
+              <div className="table-shell notebook-full-table-shell">
+                <table className="data-table notebook-full-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Marca</th>
+                      <th>Modelo</th>
+                      <th>Serial</th>
+                      <th>Processador</th>
+                      <th>GPU</th>
+                      <th>Tela</th>
+                      <th>RAM total</th>
+                      <th>Pentes</th>
+                      <th>Armazenamento</th>
+                      <th>Capacidade</th>
+                      <th>Condição</th>
+                      <th>Localização</th>
+                      <th>Status</th>
+                      <th>Entrada</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notebooks.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.id}</td>
+                        <td>{item.brand}</td>
+                        <td>{item.model}</td>
+                        <td>{item.serialNumber || "-"}</td>
+                        <td>{item.processor || "-"}</td>
+                        <td>{item.gpu || "-"}</td>
+                        <td>{item.screenSize || "-"}</td>
+                        <td>{item.ramTotal} GB</td>
+                        <td>{item.ramSticks}</td>
+                        <td>{item.storageType || "-"}</td>
+                        <td>{item.storageCapacity || "-"}</td>
+                        <td>{translateNotebookCondition(item.condition)}</td>
+                        <td>{item.location || "-"}</td>
+                        <td>
+                          <StatusPill tone={notebookStatusTone(item.status)} value={translateNotebookStatus(item.status)} />
+                        </td>
+                        <td>{formatNotebookDate(item.entryDate)}</td>
+                        <td>{renderNotebookActions(item)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-
-        <form className="stack" onSubmit={saveNotebook}>
-          <div className="input-grid notebook-form-grid">
-            <div className="input-group">
-              <label htmlFor="notebook-brand">Marca</label>
-              <input id="notebook-brand" value={form.brand} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-model">Modelo</label>
-              <input id="notebook-model" value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-serial">Número de série</label>
-              <input id="notebook-serial" value={form.serialNumber} onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-processor">Processador</label>
-              <input id="notebook-processor" value={form.processor} onChange={(event) => setForm((current) => ({ ...current, processor: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-gpu">GPU</label>
-              <input id="notebook-gpu" value={form.gpu} onChange={(event) => setForm((current) => ({ ...current, gpu: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-screen">Tela</label>
-              <input id="notebook-screen" value={form.screenSize} onChange={(event) => setForm((current) => ({ ...current, screenSize: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-ram">RAM total</label>
-              <input id="notebook-ram" type="number" min={1} value={form.ramTotal} onChange={(event) => setForm((current) => ({ ...current, ramTotal: Number(event.target.value) }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-ram-sticks">Pentes de RAM</label>
-              <input id="notebook-ram-sticks" type="number" min={1} value={form.ramSticks} onChange={(event) => setForm((current) => ({ ...current, ramSticks: Number(event.target.value) }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-storage-type">Tipo de armazenamento</label>
-              <select id="notebook-storage-type" value={form.storageType} onChange={(event) => setForm((current) => ({ ...current, storageType: event.target.value }))}>
-                <option value="SSD">SSD</option>
-                <option value="HD">HD</option>
-                <option value="NVMe">NVMe</option>
-                <option value="SSD + HD">SSD + HD</option>
-              </select>
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-storage-capacity">Capacidade de armazenamento</label>
-              <input id="notebook-storage-capacity" value={form.storageCapacity} onChange={(event) => setForm((current) => ({ ...current, storageCapacity: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-condition">Condição</label>
-              <select id="notebook-condition" value={form.condition} onChange={(event) => setForm((current) => ({ ...current, condition: event.target.value }))}>
-                <option value="Novo">Novo</option>
-                <option value="Bom">Bom</option>
-                <option value="Razoavel">Razoável</option>
-                <option value="Com Defeito">Com defeito</option>
-              </select>
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-status-field">Status</label>
-              <select id="notebook-status-field" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                <option value="Em Estoque">Em estoque</option>
-                <option value="Em Uso">Em uso</option>
-                <option value="Manutencao">Manutenção</option>
-              </select>
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-location">Localização</label>
-              <input id="notebook-location" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="notebook-entry-date">Data de entrada</label>
-              <input id="notebook-entry-date" type="date" value={form.entryDate} onChange={(event) => setForm((current) => ({ ...current, entryDate: event.target.value }))} />
-            </div>
-          </div>
-
-          <div className="inline-actions">
-            <button className="primary-button" type="submit">
-              {selectedId ? "Atualizar portátil" : "Criar portátil"}
-            </button>
-            <button className="danger-button" type="button" onClick={removeNotebook} disabled={!selectedId}>
-              Excluir selecionado
-            </button>
-          </div>
-        </form>
-      </SectionCard>
-    </ProtectedPage >
+      ) : null}
+    </ProtectedPage>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { Anton } from "next/font/google";
 import type { PropsWithChildren, ReactNode } from "react";
 import { useState } from "react";
 
@@ -10,6 +11,12 @@ import { postJson } from "@/lib/api";
 import campsoftLogo from "@/lib/logo-camps.webp";
 import { NAV_ITEMS } from "@/lib/navigation";
 import type { AuthUser } from "@/lib/types";
+
+const anton = Anton({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 type AppShellProps = PropsWithChildren<{
   description?: string;
@@ -120,20 +127,36 @@ export function AppShell({ actions, children, description, title, user }: AppShe
           <div className="sidebar-nav-block">
             <div className="nav-label">Menu</div>
             <nav className="nav-list">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`nav-link${pathname === item.href ? " active" : ""}`}
-                  title={item.label}
-                  aria-label={item.label}
-                >
-                  <span className="nav-emoji" aria-hidden="true">
-                    {item.emoji}
-                  </span>
-                  <span className="nav-text">{item.label}</span>
-                </Link>
-              ))}
+              {NAV_ITEMS.map((item) => {
+                if ("variant" in item && item.variant === "brand") {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`nav-link nav-link-brand${pathname === item.href ? " active" : ""}`}
+                      title={item.label}
+                      aria-label={item.label}
+                    >
+                      <span className={`${anton.className} nav-brand-text`}>{item.label}</span>
+                    </Link>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`nav-link${pathname === item.href ? " active" : ""}`}
+                    title={item.label}
+                    aria-label={item.label}
+                  >
+                    <span className="nav-emoji" aria-hidden="true">
+                      {item.emoji}
+                    </span>
+                    <span className="nav-text">{item.label}</span>
+                  </Link>
+                );
+              })}
             </nav>
           </div>
 
