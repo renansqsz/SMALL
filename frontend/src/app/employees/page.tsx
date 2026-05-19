@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
+import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
 import type { Employee } from "@/lib/types";
 
@@ -27,7 +28,7 @@ export default function EmployeesPage() {
   const [form, setForm] = useState<EmployeeForm>(emptyForm);
   const [unassign, setUnassign] = useState({ equipmentId: 0, quantity: 1 });
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const { notice, showNotice } = useTimedNotice();
 
   async function loadEmployees() {
     const [employeeData, officeData] = await Promise.all([
@@ -45,7 +46,7 @@ export default function EmployeesPage() {
   useEffect(() => {
     const current = employees.find((item) => item.id === selectedId);
     if (!current) {
-      setForm({ ...emptyForm, escritorio: offices[0] ?? "" });
+      setForm(emptyForm);
       return;
     }
     setForm({ nome: current.nome, escritorio: current.escritorio });
@@ -90,14 +91,20 @@ export default function EmployeesPage() {
 
   async function saveEmployee(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
+
     setError(null);
     try {
       if (selectedId) {
         await putJson(`/employees/${selectedId}`, form);
-        setMessage("Colaborador atualizado com sucesso.");
+        showNotice("Colaborador atualizado com sucesso.");
       } else {
         await postJson("/employees", form);
-        setMessage("Colaborador criado com sucesso.");
+        showNotice("Colaborador criado com sucesso.");
       }
       await loadEmployees();
     } catch (caughtError) {
@@ -115,7 +122,7 @@ export default function EmployeesPage() {
       await deleteJson(`/employees/${selectedId}`);
       setSelectedId(0);
       setDetailsId(0);
-      setMessage("Colaborador excluído com sucesso.");
+      showNotice("Colaborador excluído com sucesso.");
       await loadEmployees();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível excluir o colaborador.");
@@ -124,6 +131,12 @@ export default function EmployeesPage() {
 
   async function unassignItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
+
     if (!detailsId || !selectedAssignment) {
       setError("Selecione um item do colaborador primeiro.");
       return;
@@ -134,7 +147,7 @@ export default function EmployeesPage() {
         equipmentId: unassign.equipmentId,
         quantity: unassign.quantity,
       });
-      setMessage("Item desvinculado com sucesso.");
+      showNotice("Item desvinculado com sucesso.");
       await loadEmployees();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível desvincular o item.");
@@ -149,7 +162,7 @@ export default function EmployeesPage() {
 
     try {
       await postJson(`/employees/${detailsId}/unassign-all`);
-      setMessage("Todos os itens do colaborador foram desvinculados.");
+      showNotice("Todos os itens do colaborador foram desvinculados.");
       await loadEmployees();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível desvincular todos os itens.");
@@ -160,6 +173,7 @@ export default function EmployeesPage() {
     <ProtectedPage
       title="Colaboradores"
       description="Gerencie os colaboradores da empresa, filtre, crie, edite e visualize o histórico de alocações."
+      notice={notice}
       actions={
         <button className="secondary-button" type="button" onClick={() => void downloadFile("/exports/employees", "employees.xlsx")}>
           Exportar Excel
@@ -167,7 +181,6 @@ export default function EmployeesPage() {
       }
     >
       {error ? <div className="message error">{error}</div> : null}
-      {message ? <div className="message success">{message}</div> : null}
 
       <SectionCard title="Visão geral das pessoas" copy="Filtre colaboradores por escritório e inspecione rapidamente o volume de itens atribuídos.">
         <div className="toolbar employees-toolbar">
@@ -254,9 +267,9 @@ export default function EmployeesPage() {
       </SectionCard>
 
       <div className="split-grid">
-        <SectionCard title="Criar ou editar colaborador" copy="Alternar entre um novo formulário e registros existentes sem rerenderizar o app inteiro.">
+        <SectionCard title="Criar ou editar colaborador" copy="Crie novos colaboradores ou edite existentes.">
           <div className="input-group">
-            <label htmlFor="employee-picker">Registro atual</label>
+            <label htmlFor="employee-picker">Registro atual*</label>
             <select id="employee-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
               <option value={0}>Novo colaborador</option>
               {employees.map((item) => (
@@ -267,14 +280,16 @@ export default function EmployeesPage() {
             </select>
           </div>
 
-          <form className="stack employee-form" onSubmit={saveEmployee}>
+          <form className="stack employee-form" onSubmit={saveEmployee} noValidate>
             <div className="input-group">
-              <label htmlFor="employee-name">Nome completo</label>
-              <input id="employee-name" value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} />
+              <br>
+              </br>
+              <label htmlFor="employee-name">Nome completo*</label>
+              <input id="employee-name" required value={form.nome} onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))} />
             </div>
             <div className="input-group">
-              <label htmlFor="employee-office">Escritório</label>
-              <select id="employee-office" value={form.escritorio} onChange={(event) => setForm((current) => ({ ...current, escritorio: event.target.value }))}>
+              <label htmlFor="employee-office">Escritório*</label>
+              <select id="employee-office" required value={form.escritorio} onChange={(event) => setForm((current) => ({ ...current, escritorio: event.target.value }))}>
                 <option value="">Selecione um escritório</option>
                 {offices.map((office) => (
                   <option key={office} value={office}>
@@ -297,7 +312,7 @@ export default function EmployeesPage() {
 
         <SectionCard title="Detalhes da atribuição" copy="Inspecione um colaborador e processe devoluções parciais ou totais.">
           <div className="input-group">
-            <label htmlFor="employee-details">Colaborador</label>
+            <label htmlFor="employee-details">Colaborador*</label>
             <select
               id="employee-details"
               value={detailsId}
@@ -315,7 +330,8 @@ export default function EmployeesPage() {
               ))}
             </select>
           </div>
-
+          <br>
+          </br>
           {!selectedDetails ? (
             <div className="empty-state">Selecione um colaborador para inspecionar os itens atribuídos.</div>
           ) : (
@@ -343,15 +359,16 @@ export default function EmployeesPage() {
                 <div className="empty-state">Este colaborador não possui itens atribuídos.</div>
               ) : (
                 <>
-                  <form className="stack" onSubmit={unassignItem}>
+                  <form className="stack" onSubmit={unassignItem} noValidate>
                     <div className="input-group">
                       <label htmlFor="employee-item">Item para desvincular</label>
                       <select
                         id="employee-item"
-                        value={unassign.equipmentId}
+                        required
+                        value={unassign.equipmentId === 0 ? "" : unassign.equipmentId}
                         onChange={(event) => setUnassign((current) => ({ ...current, equipmentId: Number(event.target.value), quantity: 1 }))}
                       >
-                        <option value={0}>Selecione um item</option>
+                        <option value="">Selecione um item</option>
                         {detailItems.map((item) => (
                           <option key={item.equipmentId} value={item.equipmentId}>
                             {item.name} (qtd. {item.quantity})
@@ -364,6 +381,7 @@ export default function EmployeesPage() {
                       <input
                         id="employee-unassign-qty"
                         type="number"
+                        required
                         min={1}
                         max={selectedAssignment?.quantity ?? 1}
                         value={unassign.quantity}

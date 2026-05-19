@@ -1,89 +1,106 @@
-<<<<<<< HEAD
-# Campsoft Inventory Migration
+# SMALL – Sistema de Gerenciamento de Inventário
 
-This repository now contains two application layers:
+## Visão Geral
+Este repositório contém um sistema completo para gerenciamento de inventário, dividido em duas camadas principais:
 
-- `backend/`: new `FastAPI` backend that reuses the existing Python business rules and SQLite database.
-- `frontend/`: new `Next.js + TypeScript` frontend that replaces the Streamlit interface.
-- `app.py`: legacy Streamlit app kept temporarily as a fallback while migration finishes.
+- **backend/** – API **FastAPI** que reutiliza as regras de negócio existentes em Python e acessa o banco SQLite.
+- **frontend/** – Aplicação **Next.js + TypeScript** que substitui a interface Streamlit original.
+- **app.py** – Aplicação Streamlit legada mantida temporariamente como fallback durante a migração.
 
-## Current Architecture
+## Arquitetura Atual
 
 ### Backend
-
-- `FastAPI`
-- `Pydantic`
-- Existing domain logic reused from `python_app/services.py`
-- Existing SQLite database in `data/inventory.db`
-- Cookie-based authentication stored in the shared SQLite database
+- **FastAPI**
+- **Pydantic** para validação de dados
+- Lógica de domínio reutilizada de `python_app/services.py`
+- Banco SQLite em `data/inventory.db`
+- Autenticação baseada em cookies, armazenada no mesmo banco compartilhado
 
 ### Frontend
+- **Next.js** (React) + **TypeScript**
+- CSS customizado (sem frameworks UI externos)
+- Comunicação com a API via `NEXT_PUBLIC_API_BASE_URL`
 
-- `Next.js`
-- `React`
-- `TypeScript`
-- Custom CSS UI foundation
+## Tecnologias Utilizadas
+- **Python 3.12**
+- **FastAPI**, **Pydantic**, **uvicorn**
+- **Node.js 20**
+- **Next.js**, **React**, **TypeScript**
+- **SQLite**
+- **Streamlit** (legacy)
 
-## Install Python Dependencies
+## Pré‑requisitos
+- Python ≥ 3.10
+- Node.js ≥ 18
+- Git
+- (Opcional) virtualenv ou conda para isolar dependências Python
 
+## Instalação
+
+### 1. Clonar o repositório
+```bash
+git clone https://github.com/renansqsz/SMALL.git
+cd SMALL
+```
+
+### 2. Instalar dependências Python
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run The Backend
-
-From the repository root:
-
-```bash
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Backend health check:
-
-```bash
-http://127.0.0.1:8000/health
-```
-
-Main API prefix:
-
-```text
-http://127.0.0.1:8000/api/v1
-```
-
-## Run The Frontend
-
-In another terminal:
-
+### 3. Instalar dependências Node (frontend)
 ```bash
 cd frontend
 npm install
 ```
 
-Create `.env.local` from `.env.local.example`:
+## Configuração de Variáveis de Ambiente
 
+### Backend
+Crie um arquivo `.env` na raiz (ou use `.env.local` se preferir) com as variáveis necessárias. Por padrão, não há variáveis obrigatórias além das que o FastAPI utiliza internamente.
+
+### Frontend
+Copie o exemplo e ajuste a URL da API:
 ```bash
+cp .env.local.example .env.local
+```
+Edite `.env.local`:
+```
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-Then start the frontend:
+## Execução
 
+### Backend
 ```bash
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+A API ficará disponível em `http://127.0.0.1:8000`.
+
+#### Health check
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+### Frontend
+Em outro terminal:
+```bash
+cd frontend
 npm run dev
 ```
+A aplicação será servida em `http://127.0.0.1:3000`.
 
-Frontend default URL:
-
-```text
-http://127.0.0.1:3000
+### Aplicação Legacy (Streamlit) – Opcional
+```bash
+streamlit run app.py
 ```
+Acesse em `http://localhost:8501`.
 
-## Legacy Login
+## Credenciais de Login Legado
+- **Usuário:** `admin`
+- **Senha:** `admin`
 
-- User: `admin`
-- Password: `admin`
-
-## Migrated Pages
-
+## Páginas Migradas
 - `/login`
 - `/dashboard`
 - `/equipments`
@@ -91,11 +108,12 @@ http://127.0.0.1:3000
 - `/categories`
 - `/employees`
 
-## Notes
+## Contribuição
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/minha-feature`)
+3. Commit suas alterações (`git commit -m "feat: descrição"`)
+4. Push (`git push origin feature/minha-feature`)
+5. Abra um Pull Request
 
-- External news loading was intentionally left out of the new dashboard to avoid reintroducing slow blocking requests.
-- The Streamlit app is still present, but it is no longer the recommended entry point.
-- The migration prioritizes replacing the UI runtime first and preserving the current business rules.
-=======
-# SMALL
->>>>>>> eec62ebe96db64388ca3de44a6d9321bb1cac75a
+## Licença
+Este projeto está sob licença MIT. Consulte o arquivo `LICENSE` para mais detalhes.

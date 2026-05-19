@@ -8,6 +8,7 @@ import type { PropsWithChildren, ReactNode } from "react";
 import { useState } from "react";
 
 import { postJson } from "@/lib/api";
+import { clearSessionCache } from "@/lib/session";
 import campsoftLogo from "@/lib/logo-camps.webp";
 import { NAV_ITEMS } from "@/lib/navigation";
 import type { AuthUser } from "@/lib/types";
@@ -107,8 +108,8 @@ export function AppShell({ actions, children, description, title, user }: AppShe
     try {
       setIsLoggingOut(true);
       await postJson("/auth/logout");
+      clearSessionCache();
       router.replace("/login");
-      router.refresh();
     } finally {
       setIsLoggingOut(false);
     }

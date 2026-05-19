@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Portal de Inventário Campsoft",
-  description: "Portal administrativo da Campsoft com Next.js e FastAPI.",
+  title: "Inventário | Campsoft",
+  description: "Inventário de equipamentos Campsoft.",
 };
 
 export default function RootLayout({

@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field
 class NotebookPayload(BaseModel):
     brand: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    serialNumber: str = ""
-    processor: str = ""
-    gpu: str = ""
-    screenSize: str = ""
+    serialNumber: str = Field(min_length=1)
+    processor: str = Field(min_length=1)
+    gpu: str = Field(min_length=1)
+    screenSize: str = Field(min_length=1)
     ramTotal: int = Field(ge=1)
     ramSticks: int = Field(ge=1)
     storageType: str = Field(min_length=1)

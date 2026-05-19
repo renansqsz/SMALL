@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 class EquipmentPayload(BaseModel):
     name: str = Field(min_length=1)
     category: str = Field(min_length=1)
-    brand: str = ""
-    model: str = ""
-    serialNumber: str = ""
+    brand: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    serialNumber: str = Field(min_length=1)
     totalQuantity: int = Field(ge=0)
     availableQuantity: int = Field(ge=0)
     location: str = Field(min_length=1)
@@ -16,6 +16,6 @@ class EquipmentPayload(BaseModel):
 
 
 class EquipmentAssignmentRequest(BaseModel):
-    employeeId: int
+    employeeId: int = Field(ge=1)
     quantity: int = Field(ge=1)
     office: str = Field(min_length=1)

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
+import { useTimedNotice } from "@/components/form-toast";
 import { StatusPill } from "@/components/status-pill";
 import { HistoryIcon } from "@/components/action-icons";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
@@ -104,8 +105,8 @@ export default function EquipmentsPage() {
   const [unassignForm, setUnassignForm] = useState({ employeeId: 0, quantity: 1 });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { notice, showNotice } = useTimedNotice();
 
   async function loadPage() {
     const [equipmentData, categoryData, employeeData, officeData] = await Promise.all([
@@ -142,7 +143,7 @@ export default function EquipmentsPage() {
     if (!current) {
       setForm({
         ...emptyEquipmentForm,
-        category: categories[0]?.name ?? "",
+        category: "",
       });
       return;
     }
@@ -190,7 +191,7 @@ export default function EquipmentsPage() {
     setAssignForm((current) => ({
       ...current,
       equipmentId,
-      office: current.office || offices[0] || "",
+      office: "",
       employeeId: 0,
       quantity: 1,
     }));
@@ -216,7 +217,6 @@ export default function EquipmentsPage() {
 
   async function openUnassignDialog(item: Equipment) {
     setError(null);
-    setMessage(null);
     setActionLoading(true);
 
     try {
@@ -230,7 +230,7 @@ export default function EquipmentsPage() {
       setUnassignEquipment(item);
       setUnassignOptions(options);
       setUnassignForm({
-        employeeId: options[0].employeeId,
+        employeeId: 0,
         quantity: 1,
       });
     } catch (caughtError) {
@@ -248,6 +248,11 @@ export default function EquipmentsPage() {
 
   async function handleUnassignSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
 
     if (!unassignEquipment || !unassignForm.employeeId) {
       setError("Selecione um colaborador para desatribuir o item.");
@@ -294,12 +299,18 @@ export default function EquipmentsPage() {
         setHistoryError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível carregar o histórico do equipamento.");
       }
     }
-    setMessage(nextMessage);
+    showNotice(nextMessage);
     setError(null);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -338,10 +349,16 @@ export default function EquipmentsPage() {
 
   async function handleAssign(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
+
     setError(null);
 
     if (!assignForm.equipmentId || !assignForm.employeeId || !assignForm.office) {
-      setError("Preencha todos os campos da atribuição antes de enviar.");
+      showNotice("Preencha todos os campos da atribuição antes de enviar.", { tone: "error" });
       return;
     }
 
@@ -368,6 +385,7 @@ export default function EquipmentsPage() {
       title="Equipamentos"
       description="Gerencie os equipamentos da empresa, filtre, crie, edite e visualize o histórico de alocações."
 
+      notice={notice}
       actions={
         <button className="secondary-button" type="button" onClick={() => void downloadFile("/exports/equipments", "equipments.xlsx")}>
           Exportar Excel
@@ -375,7 +393,6 @@ export default function EquipmentsPage() {
       }
     >
       {error ? <div className="message error">{error}</div> : null}
-      {message ? <div className="message success">{message}</div> : null}
 
       <SectionCard title="Tabela de inventário" copy="Pesquise os registros atuais e monitore a disponibilidade de quantidades.">
         <div className="toolbar equipment-toolbar">
@@ -472,7 +489,7 @@ export default function EquipmentsPage() {
         <div id="assign-equipment-card">
           <SectionCard title="Criar ou editar" copy="O equipamento selecionado preenche o formulário para edição.">
             <div className="input-group">
-              <label htmlFor="equipment-picker">Registro atual</label>
+              <label htmlFor="equipment-picker">Registro atual*</label>
               <select
                 id="equipment-picker"
                 value={selectedEquipmentId}
@@ -487,16 +504,17 @@ export default function EquipmentsPage() {
               </select>
             </div>
 
-            <form className="stack" onSubmit={handleSubmit}>
+            <form className="stack" onSubmit={handleSubmit} noValidate>
               <div className="input-grid equipment-form-grid">
                 <div className="input-group">
-                  <label htmlFor="equipment-name">Nome</label>
-                  <input id="equipment-name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+                  <label htmlFor="equipment-name">Nome*</label>
+                  <input id="equipment-name" required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-category">Categoria</label>
+                  <label htmlFor="equipment-category">Categoria*</label>
                   <select
                     id="equipment-category"
+                    required
                     value={form.category}
                     onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
                   >
@@ -509,36 +527,38 @@ export default function EquipmentsPage() {
                   </select>
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-brand">Marca</label>
-                  <input id="equipment-brand" value={form.brand} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))} />
+                  <label htmlFor="equipment-brand">Marca*</label>
+                  <input id="equipment-brand" required value={form.brand} onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))} />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-model">Modelo</label>
-                  <input id="equipment-model" value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} />
+                  <label htmlFor="equipment-model">Modelo*</label>
+                  <input id="equipment-model" required value={form.model} onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))} />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-serial">Número de série</label>
-                  <input id="equipment-serial" value={form.serialNumber} onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))} />
+                  <label htmlFor="equipment-serial">Número de série*</label>
+                  <input id="equipment-serial" required value={form.serialNumber} onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))} />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-date">Data de entrada</label>
-                  <input id="equipment-date" type="date" value={form.entryDate} onChange={(event) => setForm((current) => ({ ...current, entryDate: event.target.value }))} />
+                  <label htmlFor="equipment-date">Data de entrada*</label>
+                  <input id="equipment-date" type="date" required value={form.entryDate} onChange={(event) => setForm((current) => ({ ...current, entryDate: event.target.value }))} />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-total">Quantidade total</label>
+                  <label htmlFor="equipment-total">Quantidade total*</label>
                   <input
                     id="equipment-total"
                     type="number"
+                    required
                     min={0}
                     value={form.totalQuantity}
                     onChange={(event) => setForm((current) => ({ ...current, totalQuantity: Number(event.target.value) }))}
                   />
                 </div>
                 <div className="input-group">
-                  <label htmlFor="equipment-available">Quantidade disponível</label>
+                  <label htmlFor="equipment-available">Quantidade disponível*</label>
                   <input
                     id="equipment-available"
                     type="number"
+                    required
                     min={0}
                     value={form.availableQuantity}
                     onChange={(event) => setForm((current) => ({ ...current, availableQuantity: Number(event.target.value) }))}
@@ -547,8 +567,8 @@ export default function EquipmentsPage() {
               </div>
 
               <div className="input-group">
-                <label htmlFor="equipment-location">Localização</label>
-                <input id="equipment-location" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
+                <label htmlFor="equipment-location">Setor*</label>
+                <input id="equipment-location" required value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
               </div>
 
               <div className="inline-actions">
@@ -564,15 +584,16 @@ export default function EquipmentsPage() {
         </div>
 
         <SectionCard title="Atribuir equipamento" copy="Use o filtro por escritório para encontrar o colaborador correto.">
-          <form className="stack" onSubmit={handleAssign}>
+          <form className="stack" onSubmit={handleAssign} noValidate>
             <div className="input-group">
-              <label htmlFor="assign-equipment">Equipamento</label>
+              <label htmlFor="assign-equipment">Equipamento*</label>
               <select
                 id="assign-equipment"
-                value={assignForm.equipmentId}
+                required
+                value={assignForm.equipmentId === 0 ? "" : assignForm.equipmentId}
                 onChange={(event) => setAssignForm((current) => ({ ...current, equipmentId: Number(event.target.value) }))}
               >
-                <option value={0}>Selecione um equipamento</option>
+                <option value="">Selecione um equipamento</option>
                 {equipments.map((item) => (
                   <option key={item.id} value={item.id}>
                     #{item.id} - {item.name} ({item.availableQuantity} disponíveis)
@@ -583,9 +604,10 @@ export default function EquipmentsPage() {
 
             <div className="input-grid">
               <div className="input-group">
-                <label htmlFor="assign-office">Escritório</label>
+                <label htmlFor="assign-office">Escritório*</label>
                 <select
                   id="assign-office"
+                  required
                   value={assignForm.office}
                   onChange={(event) => setAssignForm((current) => ({ ...current, office: event.target.value, employeeId: 0 }))}
                 >
@@ -599,13 +621,14 @@ export default function EquipmentsPage() {
               </div>
 
               <div className="input-group">
-                <label htmlFor="assign-employee">Colaborador</label>
+                <label htmlFor="assign-employee">Colaborador*</label>
                 <select
                   id="assign-employee"
-                  value={assignForm.employeeId}
+                  required
+                  value={assignForm.employeeId === 0 ? "" : assignForm.employeeId}
                   onChange={(event) => setAssignForm((current) => ({ ...current, employeeId: Number(event.target.value) }))}
                 >
-                  <option value={0}>Selecione um colaborador</option>
+                  <option value="">Selecione um colaborador</option>
                   {employeesForOffice.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.nome}
@@ -616,10 +639,11 @@ export default function EquipmentsPage() {
             </div>
 
             <div className="input-group">
-              <label htmlFor="assign-quantity">Quantidade</label>
+              <label htmlFor="assign-quantity">Quantidade*</label>
               <input
                 id="assign-quantity"
                 type="number"
+                required
                 min={1}
                 value={assignForm.quantity}
                 onChange={(event) => setAssignForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
@@ -716,16 +740,17 @@ export default function EquipmentsPage() {
               </div>
             </div>
 
-            <form className="stack" onSubmit={handleUnassignSubmit}>
+            <form className="stack" onSubmit={handleUnassignSubmit} noValidate>
               <div className="input-group">
                 <label htmlFor="unassign-employee">Colaborador</label>
                 <select
                   id="unassign-employee"
-                  value={unassignForm.employeeId}
+                  required
+                  value={unassignForm.employeeId === 0 ? "" : unassignForm.employeeId}
                   onChange={(event) => setUnassignForm({ employeeId: Number(event.target.value), quantity: 1 })}
                   disabled={actionLoading}
                 >
-                  <option value={0}>Selecione um colaborador</option>
+                  <option value="">Selecione um colaborador</option>
                   {unassignOptions.map((item) => (
                     <option key={item.employeeId} value={item.employeeId}>
                       {item.employeeName} ({item.office}) - {item.quantity} disponíveis
@@ -739,6 +764,7 @@ export default function EquipmentsPage() {
                 <input
                   id="unassign-quantity"
                   type="number"
+                  required
                   min={1}
                   max={selectedUnassignOption?.quantity ?? 1}
                   value={unassignForm.quantity}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
+import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, getJson, postJson } from "@/lib/api";
 import type { Category } from "@/lib/types";
 
@@ -12,7 +13,7 @@ export default function CategoriesPage() {
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const { notice, showNotice } = useTimedNotice();
 
   async function loadCategories() {
     const payload = await getJson<Category[]>("/categories");
@@ -25,11 +26,17 @@ export default function CategoriesPage() {
 
   async function createCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
+      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+      return;
+    }
+
     setError(null);
     try {
       await postJson("/categories", { name });
       setName("");
-      setMessage("Categoria criada com sucesso.");
+      showNotice("Categoria criada com sucesso.");
       await loadCategories();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível criar a categoria.");
@@ -45,7 +52,7 @@ export default function CategoriesPage() {
     try {
       await deleteJson(`/categories/${selectedId}`);
       setSelectedId(0);
-      setMessage("Categoria excluída com sucesso.");
+      showNotice("Categoria excluída com sucesso.");
       await loadCategories();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível excluir a categoria.");
@@ -56,9 +63,9 @@ export default function CategoriesPage() {
     <ProtectedPage
       title="Categorias"
       description="Liste, crie e exclua categorias de equipamentos."
+      notice={notice}
     >
       {error ? <div className="message error">{error}</div> : null}
-      {message ? <div className="message success">{message}</div> : null}
 
       <div className="split-grid">
         <SectionCard title="Categorias atuais" copy="As categorias de inventário são servidas diretamente pela camada FastAPI.">
@@ -83,11 +90,12 @@ export default function CategoriesPage() {
         </SectionCard>
 
         <SectionCard title="Criar ou excluir" copy="Mantenha as alterações em categorias pequenas e explícitas.">
-          <form className="stack" onSubmit={createCategory}>
+          <form className="stack" onSubmit={createCategory} noValidate>
             <div className="input-group">
-              <label htmlFor="category-name">Nova categoria</label>
+              <label htmlFor="category-name">Nova categoria*</label>
               <input
                 id="category-name"
+                required
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Adicione uma nova categoria"
@@ -102,7 +110,7 @@ export default function CategoriesPage() {
 
           <div className="stack">
             <div className="input-group">
-              <label htmlFor="delete-category">Categoria para excluir</label>
+              <label htmlFor="delete-category">Categoria para excluir*</label>
               <select id="delete-category" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
                 <option value={0}>Selecione uma categoria</option>
                 {categories.map((item) => (

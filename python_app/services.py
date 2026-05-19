@@ -29,37 +29,9 @@ DEFAULT_CATEGORIES = [
     "Outros",
 ]
 
-DEFAULT_EMPLOYEES = [
-    {"nome": "Ana Clara Souza", "escritorio": "CampSoft"},
-    {"nome": "Bruno Almeida", "escritorio": "CampSoft"},
-    {"nome": "Camila Ferreira", "escritorio": "CampSoft"},
-    {"nome": "Daniel Martins", "escritorio": "CampSoft"},
-    {"nome": "Eduarda Lima", "escritorio": "CampSoft"},
-    {"nome": "Felipe Rocha", "escritorio": "CampSoft"},
-    {"nome": "Gabriela Santos", "escritorio": "CampSoft"},
-    {"nome": "Henrique Costa", "escritorio": "CampSoft"},
-    {"nome": "Isabela Ribeiro", "escritorio": "CampSoft"},
-    {"nome": "Joao Pedro Gomes", "escritorio": "CampSoft"},
-    {"nome": "Karina Araujo", "escritorio": "CampSoft"},
-    {"nome": "Lucas Barbosa", "escritorio": "CampSoft"},
-    {"nome": "Mariana Duarte", "escritorio": "CampSoft"},
-    {"nome": "Nicolas Teixeira", "escritorio": "CampSoft"},
-    {"nome": "Priscila Moura", "escritorio": "CampSoft"},
-    {"nome": "Rafael Carvalho", "escritorio": "Tocalivros"},
-    {"nome": "Sabrina Mendes", "escritorio": "Tocalivros"},
-    {"nome": "Thiago Oliveira", "escritorio": "Tocalivros"},
-    {"nome": "Ursula Silva", "escritorio": "Tocalivros"},
-    {"nome": "Vinicius Lopes", "escritorio": "Tocalivros"},
-    {"nome": "Wellington Nunes", "escritorio": "Tocalivros"},
-    {"nome": "Yasmin Castro", "escritorio": "Tocalivros"},
-    {"nome": "Andre Farias", "escritorio": "Tocalivros"},
-    {"nome": "Bianca Rezende", "escritorio": "Tocalivros"},
-    {"nome": "Caio Batista", "escritorio": "Tocalivros"},
-    {"nome": "Debora Matos", "escritorio": "Tocalivros"},
-    {"nome": "Erica Pires", "escritorio": "Tocalivros"},
-    {"nome": "Gustavo Melo", "escritorio": "Tocalivros"},
-    {"nome": "Helena Cardoso", "escritorio": "Tocalivros"},
-    {"nome": "Igor Freitas", "escritorio": "Tocalivros"},
+DEFAULT_OFFICES = [
+    "CampSoft",
+    "Tocalivros",
 ]
 
 TECH_BANNER_IMAGES = [
@@ -99,6 +71,17 @@ def _rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row else None
+
+
+def _seed_offices(connection: sqlite3.Connection, offices: list[str]) -> None:
+    normalized_offices = [office.strip() for office in offices if office.strip()]
+    if not normalized_offices:
+        return
+
+    connection.executemany(
+        "INSERT OR IGNORE INTO offices (name) VALUES (?)",
+        [(office,) for office in dict.fromkeys(normalized_offices)],
+    )
 
 
 def _log_equipment_assignment_event(
@@ -202,6 +185,14 @@ def init_db() -> None:
         )
         cursor.execute(
             """
+            CREATE TABLE IF NOT EXISTS offices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS Funcionarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT NOT NULL,
@@ -250,14 +241,16 @@ def init_db() -> None:
                 [(category,) for category in DEFAULT_CATEGORIES],
             )
 
-        employees_count = cursor.execute(
-            "SELECT COUNT(*) AS count FROM Funcionarios"
-        ).fetchone()["count"]
-        if employees_count == 0:
-            cursor.executemany(
-                "INSERT INTO Funcionarios (nome, escritorio) VALUES (?, ?)",
-                [(employee["nome"], employee["escritorio"]) for employee in DEFAULT_EMPLOYEES],
-            )
+        _seed_offices(connection, DEFAULT_OFFICES)
+        existing_offices = cursor.execute(
+            """
+            SELECT DISTINCT TRIM(escritorio) AS office
+            FROM Funcionarios
+            WHERE TRIM(escritorio) <> ''
+            """
+        ).fetchall()
+        _seed_offices(connection, [row["office"] for row in existing_offices if row["office"]])
+
 
 
 def verify_user(username: str, password: str) -> dict[str, Any] | None:
@@ -320,9 +313,9 @@ def delete_category(category_id: int) -> None:
 def list_offices() -> list[str]:
     with get_connection() as connection:
         rows = connection.execute(
-            "SELECT DISTINCT escritorio FROM Funcionarios ORDER BY escritorio ASC"
+            "SELECT name FROM offices ORDER BY name ASC"
         ).fetchall()
-    return [row["escritorio"] for row in rows]
+    return [row["name"] for row in rows]
 
 
 def list_employees() -> list[dict[str, Any]]:
@@ -351,6 +344,7 @@ def upsert_employee(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Nome e escritorio sao obrigatorios.")
 
     with get_connection() as connection:
+        _seed_offices(connection, [escritorio])
         if employee_id:
             cursor = connection.execute(
                 "UPDATE Funcionarios SET nome = ?, escritorio = ? WHERE id = ?",
@@ -458,8 +452,9 @@ def upsert_equipment(payload: dict[str, Any]) -> dict[str, Any]:
     entry_date = str(payload.get("entryDate", "")).strip()
     status = calculate_status(available_quantity)
 
-    if not name or not category or not location or not entry_date:
-        raise ValueError("Preencha nome, categoria, localizacao e data de entrada.")
+    required_fields = [name, category, brand, model, serial_number, location, entry_date]
+    if any(not field for field in required_fields):
+        raise ValueError("Preencha todos os campos obrigatorios do equipamento.")
     if total_quantity < 0 or available_quantity < 0:
         raise ValueError("Quantidades nao podem ser negativas.")
     if available_quantity > total_quantity:
@@ -594,7 +589,10 @@ def upsert_notebook(payload: dict[str, Any]) -> dict[str, Any]:
     required_fields = [
         "brand",
         "model",
+        "serialNumber",
         "processor",
+        "gpu",
+        "screenSize",
         "storageType",
         "storageCapacity",
         "condition",

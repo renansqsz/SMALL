@@ -9,5 +9,5 @@ class EmployeePayload(BaseModel):
 
 
 class UnassignItemRequest(BaseModel):
-    equipmentId: int
+    equipmentId: int = Field(ge=1)
     quantity: int = Field(ge=1)
