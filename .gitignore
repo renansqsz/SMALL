@@ -1,0 +1,12 @@
+.codex-logs/
+.vscode/
+__pycache__/
+.streamlit/
+*.log
+.env
+frontend/.env.local
+frontend/.next/
+frontend/node_modules/
+*.db
+*.sqlite
+*.sqlite3
