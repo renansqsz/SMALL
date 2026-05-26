@@ -152,14 +152,6 @@ function FooterSocialIcon({ className, type }: { className?: string; type: "face
       <path d="M12 11.5v-2" />
     </IconShell>
   );
-
-  return (
-    <IconShell className={className}>
-      <rect x="5" y="5" width="14" height="14" rx="4" />
-      <path d="M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" />
-      <path d="M16.8 8.4h.01" />
-    </IconShell>
-  );
 }
 
 export function AppShell({ actions, children, description, title, user }: AppShellProps) {

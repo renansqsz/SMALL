@@ -11,13 +11,26 @@ function applyTheme(theme: ThemeMode) {
   document.documentElement.dataset.theme = theme;
 }
 
+function getStoredTheme(): ThemeMode {
+  if (typeof document === "undefined") {
+    return "light";
+  }
+
+  const datasetTheme = document.documentElement.dataset.theme;
+  if (datasetTheme === "dark" || datasetTheme === "light") {
+    return datasetTheme;
+  }
+
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return storedTheme === "dark" ? "dark" : "light";
+}
+
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [theme, setTheme] = useState<ThemeMode>(getStoredTheme);
   const isDark = theme === "dark";
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    const nextTheme: ThemeMode = storedTheme === "dark" ? "dark" : "light";
+    const nextTheme = getStoredTheme();
     setTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);

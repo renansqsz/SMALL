@@ -10,23 +10,34 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function getFeedbackTarget(field: HTMLElement) {
+  const triggerId = field.dataset.customSelectTriggerId;
+  if (triggerId) {
+    return document.getElementById(triggerId) ?? field;
+  }
+
+  return field;
+}
+
 function clearInvalidState(field: HTMLElement) {
-  field.classList.remove(INVALID_FIELD_CLASS);
-  field.removeAttribute("aria-invalid");
+  const target = getFeedbackTarget(field);
+  target.classList.remove(INVALID_FIELD_CLASS);
+  target.removeAttribute("aria-invalid");
   field.closest(".input-group")?.classList.remove(INVALID_GROUP_CLASS);
 }
 
 function scheduleInvalidFeedback(field: HTMLElement) {
+  const target = getFeedbackTarget(field);
   const pendingTimer = Number(field.dataset[INVALID_TIMER_KEY] ?? "0");
   if (pendingTimer) {
     window.clearTimeout(pendingTimer);
   }
 
   clearInvalidState(field);
-  void field.offsetWidth;
+  void target.offsetWidth;
 
-  field.classList.add(INVALID_FIELD_CLASS);
-  field.setAttribute("aria-invalid", "true");
+  target.classList.add(INVALID_FIELD_CLASS);
+  target.setAttribute("aria-invalid", "true");
   field.closest(".input-group")?.classList.add(INVALID_GROUP_CLASS);
 
   const timer = window.setTimeout(() => {
@@ -52,15 +63,17 @@ export function validateFormWithFeedback(form: HTMLFormElement, showNotice?: Not
     return false;
   }
 
+  const firstInvalidTarget = getFeedbackTarget(firstInvalidField);
+
   const reduceMotion = prefersReducedMotion();
-  firstInvalidField.scrollIntoView({
+  firstInvalidTarget.scrollIntoView({
     behavior: reduceMotion ? "auto" : "smooth",
     block: "center",
     inline: "nearest",
   });
 
   window.setTimeout(() => {
-    firstInvalidField.focus({ preventScroll: true });
+    firstInvalidTarget.focus({ preventScroll: true });
   }, reduceMotion ? 0 : 180);
 
   return false;

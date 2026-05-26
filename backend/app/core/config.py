@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 
@@ -12,7 +11,6 @@ class Settings:
     session_cookie_name: str = "campsoft_session"
     session_ttl_hours: int = 12
     remember_session_ttl_days: int = 14
-    environment: str = os.getenv("CAMPSOFT_ENV", "development")
 
 
 settings = Settings()

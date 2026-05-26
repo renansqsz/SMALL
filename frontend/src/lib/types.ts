@@ -35,12 +35,6 @@ export type Equipment = {
   status: string;
 };
 
-export type EquipmentAssignmentPayload = {
-  employeeId: number;
-  quantity: number;
-  office: string;
-};
-
 export type EquipmentHistoryItem = {
   id: number;
   equipmentId: number;

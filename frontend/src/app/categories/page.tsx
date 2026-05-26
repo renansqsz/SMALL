@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
+import { CustomSelect } from "@/components/custom-select";
 import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, getJson, postJson } from "@/lib/api";
 import { validateFormWithFeedback } from "@/lib/form-validation";
@@ -120,14 +121,15 @@ export default function CategoriesPage() {
           <div className="stack">
             <div className="input-group">
               <label htmlFor="delete-category">Categoria para excluir*</label>
-              <select id="delete-category" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
-                <option value={0}>Selecione uma categoria</option>
-                {categories.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    #{item.id} - {item.name}
-                  </option>
-                ))}
-              </select>
+              <CustomSelect
+                id="delete-category"
+                value={String(selectedId)}
+                onValueChange={(value) => setSelectedId(Number(value))}
+                options={[
+                  { value: "0", label: "Selecione uma categoria" },
+                  ...categories.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name}` })),
+                ]}
+              />
             </div>
             <button className="danger-button" type="button" onClick={removeCategory}>
               Excluir selecionada

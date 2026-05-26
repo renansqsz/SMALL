@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/section-card";
 import { useTimedNotice } from "@/components/form-toast";
 import { StatusPill } from "@/components/status-pill";
 import { HistoryIcon } from "@/components/action-icons";
+import { CustomSelect } from "@/components/custom-select";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
 import { validateFormWithFeedback } from "@/lib/form-validation";
 import {
@@ -451,15 +452,16 @@ export default function EquipmentsPage() {
             </div>
             <div className="input-group">
               <label htmlFor="equipment-status">Status</label>
-              <select
+              <CustomSelect
                 id="equipment-status"
                 value={filters.status}
-                onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
-              >
-                <option value="Todos">Todos</option>
-                <option value="Em estoque">Em estoque</option>
-                <option value="Em falta">Em falta</option>
-              </select>
+                onValueChange={(value) => setFilters((current) => ({ ...current, status: value }))}
+                options={[
+                  { value: "Todos", label: "Todos" },
+                  { value: "Em estoque", label: "Em estoque" },
+                  { value: "Em falta", label: "Em falta" },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -533,18 +535,15 @@ export default function EquipmentsPage() {
           <SectionCard title="Criar ou editar" copy="O equipamento selecionado preenche o formulário para edição.">
             <div className="input-group">
               <label htmlFor="equipment-picker">Registro atual*</label>
-              <select
+              <CustomSelect
                 id="equipment-picker"
-                value={selectedEquipmentId}
-                onChange={(event) => setSelectedEquipmentId(Number(event.target.value))}
-              >
-                <option value={0}>Novo equipamento</option>
-                {equipments.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    #{item.id} - {item.name}
-                  </option>
-                ))}
-              </select>
+                value={String(selectedEquipmentId)}
+                onValueChange={(value) => setSelectedEquipmentId(Number(value))}
+                options={[
+                  { value: "0", label: "Novo equipamento" },
+                  ...equipments.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name}` })),
+                ]}
+              />
             </div>
 
             <form className="stack" onSubmit={handleSubmit} noValidate>
@@ -555,19 +554,16 @@ export default function EquipmentsPage() {
                 </div>
                 <div className="input-group">
                   <label htmlFor="equipment-category">Categoria*</label>
-                  <select
+                  <CustomSelect
                     id="equipment-category"
                     required
                     value={form.category}
-                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                  >
-                    <option value="">Selecione uma categoria</option>
-                    {categories.map((item) => (
-                      <option key={item.id} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}
+                    options={[
+                      { value: "", label: "Selecione uma categoria" },
+                      ...categories.map((item) => ({ value: item.name, label: item.name })),
+                    ]}
+                  />
                 </div>
                 <div className="input-group">
                   <label htmlFor="equipment-brand">Marca*</label>
@@ -630,54 +626,45 @@ export default function EquipmentsPage() {
           <form className="stack" onSubmit={handleAssign} noValidate>
             <div className="input-group">
               <label htmlFor="assign-equipment">Equipamento*</label>
-              <select
+              <CustomSelect
                 id="assign-equipment"
                 required
-                value={assignForm.equipmentId === 0 ? "" : assignForm.equipmentId}
-                onChange={(event) => setAssignForm((current) => ({ ...current, equipmentId: Number(event.target.value) }))}
-              >
-                <option value="">Selecione um equipamento</option>
-                {equipments.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    #{item.id} - {item.name} ({item.availableQuantity} disponíveis)
-                  </option>
-                ))}
-              </select>
+                value={assignForm.equipmentId === 0 ? "" : String(assignForm.equipmentId)}
+                onValueChange={(value) => setAssignForm((current) => ({ ...current, equipmentId: Number(value) }))}
+                options={[
+                  { value: "", label: "Selecione um equipamento" },
+                  ...equipments.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name} (${item.availableQuantity} disponíveis)` })),
+                ]}
+              />
             </div>
 
             <div className="input-grid">
               <div className="input-group">
                 <label htmlFor="assign-office">Escritório*</label>
-                <select
+                <CustomSelect
                   id="assign-office"
                   required
                   value={assignForm.office}
-                  onChange={(event) => setAssignForm((current) => ({ ...current, office: event.target.value, employeeId: 0 }))}
-                >
-                  <option value="">Selecione um escritório</option>
-                  {offices.map((office) => (
-                    <option key={office} value={office}>
-                      {office}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setAssignForm((current) => ({ ...current, office: value, employeeId: 0 }))}
+                  options={[
+                    { value: "", label: "Selecione um escritório" },
+                    ...offices.map((office) => ({ value: office, label: office })),
+                  ]}
+                />
               </div>
 
               <div className="input-group">
                 <label htmlFor="assign-employee">Colaborador*</label>
-                <select
+                <CustomSelect
                   id="assign-employee"
                   required
-                  value={assignForm.employeeId === 0 ? "" : assignForm.employeeId}
-                  onChange={(event) => setAssignForm((current) => ({ ...current, employeeId: Number(event.target.value) }))}
-                >
-                  <option value="">Selecione um colaborador</option>
-                  {employeesForOffice.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nome}
-                    </option>
-                  ))}
-                </select>
+                  value={assignForm.employeeId === 0 ? "" : String(assignForm.employeeId)}
+                  onValueChange={(value) => setAssignForm((current) => ({ ...current, employeeId: Number(value) }))}
+                  options={[
+                    { value: "", label: "Selecione um colaborador" },
+                    ...employeesForOffice.map((item) => ({ value: String(item.id), label: item.nome })),
+                  ]}
+                />
               </div>
             </div>
 
@@ -704,18 +691,15 @@ export default function EquipmentsPage() {
         <SectionCard title="Histórico de equipamentos" copy="Acompanhe as atribuições e devoluções registradas para cada item.">
           <div className="input-group" style={{ marginBottom: "1rem" }}>
             <label htmlFor="history-equipment">Equipamento</label>
-            <select
+            <CustomSelect
               id="history-equipment"
-              value={historyEquipmentId}
-              onChange={(event) => setHistoryEquipmentId(Number(event.target.value))}
-            >
-              <option value={0}>Selecione um equipamento</option>
-              {equipments.map((item) => (
-                <option key={item.id} value={item.id}>
-                  #{item.id} - {item.name}
-                </option>
-              ))}
-            </select>
+              value={String(historyEquipmentId)}
+              onValueChange={(value) => setHistoryEquipmentId(Number(value))}
+              options={[
+                { value: "0", label: "Selecione um equipamento" },
+                ...equipments.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name}` })),
+              ]}
+            />
           </div>
 
           {historyLoading ? (
@@ -786,20 +770,20 @@ export default function EquipmentsPage() {
             <form className="stack" onSubmit={handleUnassignSubmit} noValidate>
               <div className="input-group">
                 <label htmlFor="unassign-employee">Colaborador</label>
-                <select
+                <CustomSelect
                   id="unassign-employee"
                   required
-                  value={unassignForm.employeeId === 0 ? "" : unassignForm.employeeId}
-                  onChange={(event) => setUnassignForm({ employeeId: Number(event.target.value), quantity: 1 })}
                   disabled={actionLoading}
-                >
-                  <option value="">Selecione um colaborador</option>
-                  {unassignOptions.map((item) => (
-                    <option key={item.employeeId} value={item.employeeId}>
-                      {item.employeeName} ({item.office}) - {item.quantity} disponíveis
-                    </option>
-                  ))}
-                </select>
+                  value={unassignForm.employeeId === 0 ? "" : String(unassignForm.employeeId)}
+                  onValueChange={(value) => setUnassignForm({ employeeId: Number(value), quantity: 1 })}
+                  options={[
+                    { value: "", label: "Selecione um colaborador" },
+                    ...unassignOptions.map((item) => ({
+                      value: String(item.employeeId),
+                      label: `${item.employeeName} (${item.office}) - ${item.quantity} disponíveis`,
+                    })),
+                  ]}
+                />
               </div>
 
               <div className="input-group">

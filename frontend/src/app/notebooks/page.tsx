@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { EyeIcon, PencilIcon, TrashIcon } from "@/components/action-icons";
+import { CustomSelect } from "@/components/custom-select";
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
 import { useTimedNotice } from "@/components/form-toast";
@@ -224,16 +225,17 @@ export default function NotebooksPage() {
             </div>
             <div className="input-group">
               <label htmlFor="notebook-status">Status</label>
-              <select
+              <CustomSelect
                 id="notebook-status"
                 value={filters.status}
-                onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
-              >
-                <option value="Todos">Todos</option>
-                <option value="Em Estoque">Em estoque</option>
-                <option value="Em Uso">Em uso</option>
-                <option value="Manutencao">Manutenção</option>
-              </select>
+                onValueChange={(value) => setFilters((current) => ({ ...current, status: value }))}
+                options={[
+                  { value: "Todos", label: "Todos" },
+                  { value: "Em Estoque", label: "Em estoque" },
+                  { value: "Em Uso", label: "Em uso" },
+                  { value: "Manutencao", label: "Manutenção" },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -282,14 +284,18 @@ export default function NotebooksPage() {
         <SectionCard title="Criar ou editar notebook" copy="Escolha um notebook existente ou abra um novo formulário.">
           <div className="input-group">
             <label htmlFor="notebook-picker">Registro atual</label>
-            <select id="notebook-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
-              <option value={0}>Novo notebook</option>
-              {notebooks.map((item) => (
-                <option key={item.id} value={item.id}>
-                  #{item.id} - {item.brand} {item.model} | {item.processor} | {item.location}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              id="notebook-picker"
+              value={String(selectedId)}
+              onValueChange={(value) => setSelectedId(Number(value))}
+              options={[
+                { value: "0", label: "Novo notebook" },
+                ...notebooks.map((item) => ({
+                  value: String(item.id),
+                  label: `#${item.id} - ${item.brand} ${item.model} | ${item.processor} | ${item.location}`,
+                })),
+              ]}
+            />
           </div>
 
           <form className="stack" onSubmit={saveNotebook} noValidate>
@@ -328,12 +334,18 @@ export default function NotebooksPage() {
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-storage-type">Tipo de armazenamento*</label>
-                <select id="notebook-storage-type" required value={form.storageType} onChange={(event) => setForm((current) => ({ ...current, storageType: event.target.value }))}>
-                  <option value="SSD">SSD</option>
-                  <option value="HD">HD</option>
-                  <option value="NVMe">NVMe</option>
-                  <option value="SSD + HD">SSD + HD</option>
-                </select>
+                <CustomSelect
+                  id="notebook-storage-type"
+                  required
+                  value={form.storageType}
+                  onValueChange={(value) => setForm((current) => ({ ...current, storageType: value }))}
+                  options={[
+                    { value: "SSD", label: "SSD" },
+                    { value: "HD", label: "HD" },
+                    { value: "NVMe", label: "NVMe" },
+                    { value: "SSD + HD", label: "SSD + HD" },
+                  ]}
+                />
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-storage-capacity">Capacidade de armazenamento*</label>
@@ -341,20 +353,32 @@ export default function NotebooksPage() {
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-condition">Condição*</label>
-                <select id="notebook-condition" required value={form.condition} onChange={(event) => setForm((current) => ({ ...current, condition: event.target.value }))}>
-                  <option value="Novo">Novo</option>
-                  <option value="Bom">Bom</option>
-                  <option value="Razoavel">Razoável</option>
-                  <option value="Com Defeito">Com defeito</option>
-                </select>
+                <CustomSelect
+                  id="notebook-condition"
+                  required
+                  value={form.condition}
+                  onValueChange={(value) => setForm((current) => ({ ...current, condition: value }))}
+                  options={[
+                    { value: "Novo", label: "Novo" },
+                    { value: "Bom", label: "Bom" },
+                    { value: "Razoavel", label: "Razoável" },
+                    { value: "Com Defeito", label: "Com defeito" },
+                  ]}
+                />
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-status-field">Status*</label>
-                <select id="notebook-status-field" required value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="Em Estoque">Em estoque</option>
-                  <option value="Em Uso">Em uso</option>
-                  <option value="Manutencao">Manutenção</option>
-                </select>
+                <CustomSelect
+                  id="notebook-status-field"
+                  required
+                  value={form.status}
+                  onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}
+                  options={[
+                    { value: "Em Estoque", label: "Em estoque" },
+                    { value: "Em Uso", label: "Em uso" },
+                    { value: "Manutencao", label: "Manutenção" },
+                  ]}
+                />
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-location">Localização*</label>

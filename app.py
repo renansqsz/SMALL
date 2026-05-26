@@ -318,7 +318,6 @@ def inject_theme_toggle_script() -> None:
                         line-height: 1;
                     }
 
-                    /* DARK THEME OVERRIDES */
                     body[data-custom-theme="dark"] .stApp {
                         background-color: #0f172a !important;
                     }

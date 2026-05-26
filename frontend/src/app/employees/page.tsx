@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
+import { CustomSelect } from "@/components/custom-select";
 import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
 import { validateFormWithFeedback } from "@/lib/form-validation";
@@ -222,21 +223,18 @@ export default function EmployeesPage() {
             </div>
             <div className="input-group">
               <label htmlFor="employee-office-filter">Escritório</label>
-              <select
+              <CustomSelect
                 id="employee-office-filter"
                 value={filters.office}
-                onChange={(event) => {
+                onValueChange={(value) => {
                   setEmployeePage(1);
-                  setFilters((current) => ({ ...current, office: event.target.value }));
+                  setFilters((current) => ({ ...current, office: value }));
                 }}
-              >
-                <option value="Todos">Todos</option>
-                {offices.map((office) => (
-                  <option key={office} value={office}>
-                    {office}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "Todos", label: "Todos" },
+                  ...offices.map((office) => ({ value: office, label: office })),
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -293,14 +291,15 @@ export default function EmployeesPage() {
         <SectionCard title="Criar ou editar colaborador" copy="Crie novos colaboradores ou edite existentes.">
           <div className="input-group">
             <label htmlFor="employee-picker">Registro atual*</label>
-            <select id="employee-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
-              <option value={0}>Novo colaborador</option>
-              {employees.map((item) => (
-                <option key={item.id} value={item.id}>
-                  #{item.id} - {item.nome}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              id="employee-picker"
+              value={String(selectedId)}
+              onValueChange={(value) => setSelectedId(Number(value))}
+              options={[
+                { value: "0", label: "Novo colaborador" },
+                ...employees.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.nome}` })),
+              ]}
+            />
           </div>
 
           <form className="stack employee-form" onSubmit={saveEmployee} noValidate>
@@ -312,14 +311,16 @@ export default function EmployeesPage() {
             </div>
             <div className="input-group">
               <label htmlFor="employee-office">Escritório*</label>
-              <select id="employee-office" required value={form.escritorio} onChange={(event) => setForm((current) => ({ ...current, escritorio: event.target.value }))}>
-                <option value="">Selecione um escritório</option>
-                {offices.map((office) => (
-                  <option key={office} value={office}>
-                    {office}
-                  </option>
-                ))}
-              </select>
+              <CustomSelect
+                id="employee-office"
+                required
+                value={form.escritorio}
+                onValueChange={(value) => setForm((current) => ({ ...current, escritorio: value }))}
+                options={[
+                  { value: "", label: "Selecione um escritório" },
+                  ...offices.map((office) => ({ value: office, label: office })),
+                ]}
+              />
             </div>
 
             <div className="inline-actions">
@@ -336,22 +337,19 @@ export default function EmployeesPage() {
         <SectionCard title="Detalhes da atribuição" copy="Inspecione um colaborador e processe devoluções parciais ou totais.">
           <div className="input-group">
             <label htmlFor="employee-details">Colaborador*</label>
-            <select
+            <CustomSelect
               id="employee-details"
-              value={detailsId}
-              onChange={(event) => {
-                const nextId = Number(event.target.value);
+              value={String(detailsId)}
+              onValueChange={(value) => {
+                const nextId = Number(value);
                 setDetailsId(nextId);
                 setUnassign({ equipmentId: 0, quantity: 1 });
               }}
-            >
-              <option value={0}>Selecione um colaborador</option>
-              {filteredEmployees.map((item) => (
-                <option key={item.id} value={item.id}>
-                  #{item.id} - {item.nome} ({item.escritorio})
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "0", label: "Selecione um colaborador" },
+                ...filteredEmployees.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.nome} (${item.escritorio})` })),
+              ]}
+            />
           </div>
           <br>
           </br>
@@ -385,19 +383,16 @@ export default function EmployeesPage() {
                   <form className="stack" onSubmit={unassignItem} noValidate>
                     <div className="input-group">
                       <label htmlFor="employee-item">Item para desvincular</label>
-                      <select
+                      <CustomSelect
                         id="employee-item"
                         required
-                        value={unassign.equipmentId === 0 ? "" : unassign.equipmentId}
-                        onChange={(event) => setUnassign((current) => ({ ...current, equipmentId: Number(event.target.value), quantity: 1 }))}
-                      >
-                        <option value="">Selecione um item</option>
-                        {detailItems.map((item) => (
-                          <option key={item.equipmentId} value={item.equipmentId}>
-                            {item.name} (qtd. {item.quantity})
-                          </option>
-                        ))}
-                      </select>
+                        value={unassign.equipmentId === 0 ? "" : String(unassign.equipmentId)}
+                        onValueChange={(value) => setUnassign((current) => ({ ...current, equipmentId: Number(value), quantity: 1 }))}
+                        options={[
+                          { value: "", label: "Selecione um item" },
+                          ...detailItems.map((item) => ({ value: String(item.equipmentId), label: `${item.name} (qtd. ${item.quantity})` })),
+                        ]}
+                      />
                     </div>
                     <div className="input-group">
                       <label htmlFor="employee-unassign-qty">Quantidade</label>
