@@ -5,19 +5,39 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Anton } from "next/font/google";
 import type { PropsWithChildren, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { postJson } from "@/lib/api";
+import campsoftNegativeLogo from "@/lib/camp_negativa.png";
 import { clearSessionCache } from "@/lib/session";
 import campsoftLogo from "@/lib/logo-camps.webp";
 import { NAV_ITEMS } from "@/lib/navigation";
 import type { AuthUser } from "@/lib/types";
+import { ThemeToggle } from "./theme-toggle";
 
 const anton = Anton({
   weight: "400",
   subsets: ["latin"],
   display: "swap",
 });
+
+const SIDEBAR_STATE_STORAGE_KEY = "campsoft_sidebar_collapsed";
+
+function getInitialSidebarCollapsed() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  return document.documentElement.dataset.sidebarCollapsed === "true";
+}
+
+function getInitialDarkMode() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  return document.documentElement.classList.contains("dark");
+}
 
 type AppShellProps = PropsWithChildren<{
   description?: string;
@@ -98,11 +118,96 @@ function LogoutIcon({ className }: { className?: string }) {
   );
 }
 
+function SidebarToggleIcon({ collapsed, className }: { collapsed: boolean; className?: string }) {
+  return (
+    <IconShell className={className}>
+      {collapsed ? <path d="m9 6 6 6-6 6" /> : <path d="m15 6-6 6 6 6" />}
+    </IconShell>
+  );
+}
+
+function FooterSocialIcon({ className, type }: { className?: string; type: "facebook" | "github" | "linkedin" | "instagram" }) {
+  if (type === "facebook") {
+    return (
+      <IconShell className={className}>
+        <path d="M14 7.5h2.5V4.8H14c-2.1 0-3.5 1.4-3.5 3.8v2.1H8v2.8h2.5v5.7h2.9v-5.7h2.7l.4-2.8h-3.1V9c0-.9.4-1.5 1.6-1.5Z" />
+      </IconShell>
+    );
+  }
+
+  if (type === "github") {
+    return (
+      <IconShell className={className}>
+        <path d="M9 18.5c-3.5 1-3.5-2-5-2.5" />
+        <path d="M15 20v-3.1c0-1 .1-1.5-.5-2 2.2-.2 4.5-1.1 4.5-5a3.9 3.9 0 0 0-1-2.7 3.7 3.7 0 0 0-.1-2.7s-.9-.3-2.9 1a10 10 0 0 0-5 0c-2-1.3-2.9-1-2.9-1a3.7 3.7 0 0 0-.1 2.7 3.9 3.9 0 0 0-1 2.7c0 3.9 2.3 4.8 4.5 5-.6.5-.6 1-.5 2V20" />
+      </IconShell>
+    );
+  }
+
+  return (
+    <IconShell className={className}>
+      <path d="M8 9.5v8" />
+      <path d="M8 6.5a1 1 0 1 0 0-.01" />
+      <path d="M12 17.5v-4.8c0-1.8 1.7-2.1 2.4-2.1 1.4 0 2.6.8 2.6 3v3.9" />
+      <path d="M12 11.5v-2" />
+    </IconShell>
+  );
+
+  return (
+    <IconShell className={className}>
+      <rect x="5" y="5" width="14" height="14" rx="4" />
+      <path d="M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z" />
+      <path d="M16.8 8.4h.01" />
+    </IconShell>
+  );
+}
+
 export function AppShell({ actions, children, description, title, user }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getInitialSidebarCollapsed);
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
   const currentNav = NAV_ITEMS.find((item) => item.href === pathname) ?? NAV_ITEMS[0];
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STATE_STORAGE_KEY, String(isSidebarCollapsed));
+    document.documentElement.dataset.sidebarCollapsed = isSidebarCollapsed ? "true" : "false";
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    const element = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(element.classList.contains("dark"));
+    });
+
+    observer.observe(element, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
+  function renderNavIcon(icon: string) {
+    if (icon === "dashboard") {
+      return "🌐";
+    }
+
+    if (icon === "equipment") {
+      return "🧰";
+    }
+
+    if (icon === "notebook") {
+      return "💻";
+    }
+
+    if (icon === "category") {
+      return "📦";
+    }
+
+    if (icon === "employees") {
+      return "👤";
+    }
+
+    return null;
+  }
 
   async function handleLogout() {
     try {
@@ -116,13 +221,25 @@ export function AppShell({ actions, children, description, title, user }: AppShe
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell page-enter${isSidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-panel">
-          <div className="brand-lockup">
+          <div className="sidebar-topbar">
             <div className="sidebar-brand-mark">
-              <Image className="sidebar-brand-image" src={campsoftLogo} alt="CAMPSOFT" priority />
+              <Image className="sidebar-brand-image" src={isDarkMode ? campsoftNegativeLogo : campsoftLogo} alt="CAMPSOFT" priority />
+              <div className="sidebar-brand-monogram" aria-hidden="true">
+                C
+              </div>
             </div>
+            <button
+              className="ghost-button sidebar-collapse-toggle"
+              type="button"
+              onClick={() => setIsSidebarCollapsed((current) => !current)}
+              aria-label={isSidebarCollapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+              aria-pressed={isSidebarCollapsed}
+            >
+              <SidebarToggleIcon collapsed={isSidebarCollapsed} className="button-icon-svg" />
+            </button>
           </div>
 
           <div className="sidebar-nav-block">
@@ -138,7 +255,7 @@ export function AppShell({ actions, children, description, title, user }: AppShe
                       title={item.label}
                       aria-label={item.label}
                     >
-                      <span className={`${anton.className} nav-brand-text`}>{item.label}</span>
+                      <span className={`${anton.className} nav-brand-text`}>{isSidebarCollapsed ? "B" : item.label}</span>
                     </Link>
                   );
                 }
@@ -152,7 +269,7 @@ export function AppShell({ actions, children, description, title, user }: AppShe
                     aria-label={item.label}
                   >
                     <span className="nav-emoji" aria-hidden="true">
-                      {item.emoji}
+                      {renderNavIcon(item.icon)}
                     </span>
                     <span className="nav-text">{item.label}</span>
                   </Link>
@@ -163,10 +280,10 @@ export function AppShell({ actions, children, description, title, user }: AppShe
 
           <div className="sidebar-footer">
             <button className="ghost-button sidebar-logout" type="button" onClick={handleLogout} disabled={isLoggingOut}>
-              <span className="sidebar-action-emoji" aria-hidden="true">
-                🚪
+              <span className="button-icon" aria-hidden="true">
+                <LogoutIcon className="button-icon-svg" />
               </span>
-              <span>{isLoggingOut ? "Saindo..." : "Sair"}</span>
+              <span className="sidebar-logout-text">{isLoggingOut ? "Saindo..." : "Sair"}</span>
             </button>
             <div className="account-chip">
               <div className="account-label">Conectado como</div>
@@ -180,7 +297,7 @@ export function AppShell({ actions, children, description, title, user }: AppShe
         <div className="page-stack">
           <header className="page-header surface-panel">
             <div className="page-heading">
-              <div className="page-kicker">Portal Campsoft</div>
+              <div className="page-kicker">Portal de TI</div>
               <div className="page-title-row">
                 <span className="page-icon" aria-hidden="true">
                   {currentNav.icon === "dashboard" ? (
@@ -199,10 +316,65 @@ export function AppShell({ actions, children, description, title, user }: AppShe
               </div>
               {description ? <p className="page-description">{description}</p> : null}
             </div>
-            {actions ? <div className="header-actions">{actions}</div> : null}
+            <div className="header-actions">
+              <ThemeToggle />
+              {actions}
+            </div>
           </header>
           {children}
         </div>
+        <footer className="site-footer">
+          <div className="site-footer-brand">
+            <div className="site-footer-logo">
+              <span className="site-footer-logo-mark" aria-hidden="true">
+                <Image className="site-footer-logo-image" src={isDarkMode ? campsoftNegativeLogo : campsoftLogo} alt="" />
+              </span>
+              <div className="site-footer-logo-copy">
+                <div className="site-footer-logo-name">Portal de TI</div>
+                <p className="site-footer-copy">
+                  Plataforma interna para controlar inventário, acompanhar ativos e operar o fluxo de TI com uma interface clara e objetiva.
+                </p>
+              </div>
+            </div>
+
+            <div className="site-footer-socials">
+              <a className="site-footer-social" href="#" aria-label="Campsoft no Facebook">
+                <FooterSocialIcon type="facebook" className="button-icon-svg" />
+              </a>
+              <a className="site-footer-social" href="#" aria-label="Campsoft no Instagram">
+                <FooterSocialIcon type="instagram" className="button-icon-svg" />
+              </a>
+              <a className="site-footer-social" href="#" aria-label="Campsoft no GitHub">
+                <FooterSocialIcon type="github" className="button-icon-svg" />
+              </a>
+              <a className="site-footer-social" href="#" aria-label="Campsoft no LinkedIn">
+                <FooterSocialIcon type="linkedin" className="button-icon-svg" />
+              </a>
+            </div>
+          </div>
+
+          <div className="site-footer-links">
+            <div className="site-footer-column">
+              <div className="site-footer-heading">PÁGINAS</div>
+              <a href="/equipments">Equipamentos</a>
+              <a href="/notebooks">Notebooks</a>
+              <a href="/categories">Categorias</a>
+              <a href="/employees">Colaboradores</a>
+            </div>
+            <div className="site-footer-column">
+              <div className="site-footer-heading">Empresa</div>
+              <a href="#">Sobre</a>
+              <a href="#">Operações</a>
+              <a href="#">Times</a>
+              <a href="#">Contato</a>
+            </div>
+            <div className="site-footer-column">
+              <div className="site-footer-heading">Recursos</div>
+              <a href="#">Documentação</a>
+              <a href="#">Suporte</a>
+            </div>
+          </div>
+        </footer>
       </main>
     </div>
   );

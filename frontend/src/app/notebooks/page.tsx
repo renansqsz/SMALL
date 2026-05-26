@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { EyeIcon, PencilIcon, TrashIcon } from "@/components/action-icons";
 import { ProtectedPage } from "@/components/protected-page";
@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/section-card";
 import { useTimedNotice } from "@/components/form-toast";
 import { StatusPill } from "@/components/status-pill";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
+import { validateFormWithFeedback } from "@/lib/form-validation";
 import { notebookStatusTone, translateNotebookCondition, translateNotebookStatus } from "@/lib/pt-br";
 import type { Notebook } from "@/lib/types";
 
@@ -43,17 +44,30 @@ export default function NotebooksPage() {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const { notice, showNotice } = useTimedNotice();
 
+  const deferredSearch = useDeferredValue(filters.search);
+
   async function loadNotebooks() {
     const payload = await getJson<Notebook[]>("/notebooks");
     setNotebooks(payload);
   }
 
   useEffect(() => {
-    void loadNotebooks().catch(() => setError("Não foi possível carregar os portáteis."));
+    void loadNotebooks().catch(() => setError("Não foi possível carregar os notebooks."));
   }, []);
 
   useEffect(() => {
-    const current = notebooks.find((item) => item.id === selectedId);
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
+  const selectedNotebook = useMemo(
+    () => notebooks.find((item) => item.id === selectedId) ?? null,
+    [notebooks, selectedId],
+  );
+
+  useEffect(() => {
+    const current = selectedNotebook;
     if (!current) {
       setForm(notebookDefaults);
       return;
@@ -75,16 +89,18 @@ export default function NotebooksPage() {
       status: current.status ?? "Em Estoque",
       entryDate: current.entryDate.slice(0, 10),
     });
-  }, [notebooks, selectedId]);
+  }, [selectedNotebook]);
 
-  const filteredNotebooks = notebooks.filter((item) => {
-    const matchesSearch = [item.brand, item.model, item.serialNumber, item.processor, item.gpu, item.location]
-      .join(" ")
-      .toLowerCase()
-      .includes(filters.search.toLowerCase());
-    const matchesStatus = filters.status === "Todos" || item.status === filters.status;
-    return matchesSearch && matchesStatus;
-  });
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const filteredNotebooks = useMemo(
+    () =>
+      notebooks.filter((item) => {
+        const matchesSearch = [item.brand, item.model, item.serialNumber, item.processor, item.gpu, item.location].join(" ").toLowerCase().includes(normalizedSearch);
+        const matchesStatus = filters.status === "Todos" || item.status === filters.status;
+        return matchesSearch && matchesStatus;
+      }),
+    [filters.status, normalizedSearch, notebooks],
+  );
 
   function focusNotebook(notebookId: number) {
     setSelectedId(notebookId);
@@ -101,9 +117,7 @@ export default function NotebooksPage() {
 
   async function saveNotebook(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -112,10 +126,10 @@ export default function NotebooksPage() {
     try {
       if (selectedId) {
         await putJson(`/notebooks/${selectedId}`, form);
-        showNotice("Portátil atualizado com sucesso.");
+        showNotice("Notebook atualizado com sucesso.");
       } else {
         await postJson("/notebooks", form);
-        showNotice("Portátil criado com sucesso.");
+        showNotice("Notebook criado com sucesso.");
       }
 
       await loadNotebooks();
@@ -132,7 +146,7 @@ export default function NotebooksPage() {
       if (selectedId === notebookId) {
         setSelectedId(0);
       }
-      showNotice("Portátil excluído com sucesso.");
+      showNotice("Notebook excluído com sucesso.");
       await loadNotebooks();
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível excluir o notebook.");
@@ -186,7 +200,7 @@ export default function NotebooksPage() {
       {error ? <div className="message error">{error}</div> : null}
 
       <SectionCard
-        title="Inventário de portáteis"
+        title="Inventário de Notebooks"
         copy="Filtre o catálogo atual por status ou termos de hardware."
         actions={
           <button className="secondary-button" type="button" onClick={openCatalog}>
@@ -269,7 +283,7 @@ export default function NotebooksPage() {
           <div className="input-group">
             <label htmlFor="notebook-picker">Registro atual</label>
             <select id="notebook-picker" value={selectedId} onChange={(event) => setSelectedId(Number(event.target.value))}>
-              <option value={0}>Novo portátil</option>
+              <option value={0}>Novo notebook</option>
               {notebooks.map((item) => (
                 <option key={item.id} value={item.id}>
                   #{item.id} - {item.brand} {item.model} | {item.processor} | {item.location}
@@ -306,11 +320,11 @@ export default function NotebooksPage() {
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-ram">RAM total*</label>
-                <input id="notebook-ram" type="number" required min={1} value={form.ramTotal} onChange={(event) => setForm((current) => ({ ...current, ramTotal: Number(event.target.value) }))} />
+                <input id="notebook-ram" type="number" required min={0} value={form.ramTotal} onChange={(event) => setForm((current) => ({ ...current, ramTotal: Number(event.target.value) }))} />
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-ram-sticks">Pentes de RAM*</label>
-                <input id="notebook-ram-sticks" type="number" required min={1} value={form.ramSticks} onChange={(event) => setForm((current) => ({ ...current, ramSticks: Number(event.target.value) }))} />
+                <input id="notebook-ram-sticks" type="number" required min={0} value={form.ramSticks} onChange={(event) => setForm((current) => ({ ...current, ramSticks: Number(event.target.value) }))} />
               </div>
               <div className="input-group">
                 <label htmlFor="notebook-storage-type">Tipo de armazenamento*</label>
@@ -354,7 +368,7 @@ export default function NotebooksPage() {
 
             <div className="inline-actions">
               <button className="primary-button" type="submit">
-                {selectedId ? "Atualizar portátil" : "Criar portátil"}
+                {selectedId ? "Atualizar notebook" : "Criar notebook"}
               </button>
               <button className="danger-button" type="button" onClick={() => void handleDeleteNotebook(selectedId)} disabled={!selectedId}>
                 Excluir selecionado

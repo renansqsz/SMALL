@@ -79,9 +79,12 @@ export type EmployeeAssignmentItem = {
   type: string;
 };
 
-export type Employee = {
+export type EmployeeBase = {
   id: number;
   nome: string;
   escritorio: string;
+};
+
+export type Employee = EmployeeBase & {
   items: EmployeeAssignmentItem[];
 };

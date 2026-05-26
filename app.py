@@ -1540,7 +1540,7 @@ def render_notebooks() -> None:
             left, right = st.columns(2)
             with left:
                 gpu = st.text_input("Placa de video", value=current["gpu"] or "")
-                ram_total = st.number_input("RAM total (GB)", min_value=1, value=int(current["ramTotal"]))
+                ram_total = st.number_input("RAM total (GB)", min_value=0, value=int(current["ramTotal"]))
                 storage_type = st.selectbox(
                     "Tipo de armazenamento",
                     storage_options,
@@ -1553,7 +1553,7 @@ def render_notebooks() -> None:
                 )
             with right:
                 screen_size = st.text_input("Tela", value=current["screenSize"] or "")
-                ram_sticks = st.number_input("Qtd. de pentes RAM", min_value=1, value=int(current["ramSticks"]))
+                ram_sticks = st.number_input("Qtd. de pentes RAM", min_value=0, value=int(current["ramSticks"]))
                 storage_capacity = st.text_input("Capacidade do armazenamento", value=current["storageCapacity"] or "")
                 status = st.selectbox(
                     "Status",

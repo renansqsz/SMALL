@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
 import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
+import { validateFormWithFeedback } from "@/lib/form-validation";
 import type { Employee } from "@/lib/types";
 
 type EmployeeForm = {
@@ -30,6 +31,11 @@ export default function EmployeesPage() {
   const [error, setError] = useState<string | null>(null);
   const { notice, showNotice } = useTimedNotice();
 
+  function notifyError(message: string) {
+    setError(message);
+  }
+  const deferredSearch = useDeferredValue(filters.search);
+
   async function loadEmployees() {
     const [employeeData, officeData] = await Promise.all([
       getJson<Employee[]>("/employees"),
@@ -44,56 +50,75 @@ export default function EmployeesPage() {
   }, []);
 
   useEffect(() => {
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
+  useEffect(() => {
     const current = employees.find((item) => item.id === selectedId);
     if (!current) {
       setForm(emptyForm);
       return;
     }
     setForm({ nome: current.nome, escritorio: current.escritorio });
-  }, [employees, offices, selectedId]);
+  }, [employees, selectedId]);
 
-  const filteredEmployees = employees.filter((employee) => {
-    const matchesOffice = filters.office === "Todos" || employee.escritorio === filters.office;
-    const matchesSearch = [employee.nome, employee.escritorio]
-      .join(" ")
-      .toLowerCase()
-      .includes(filters.search.toLowerCase());
-    return matchesOffice && matchesSearch;
-  });
   const employeesPerPage = 5;
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const employeesById = useMemo(() => new Map(employees.map((item) => [item.id, item])), [employees]);
+  const filteredEmployees = useMemo(
+    () =>
+      employees.filter((employee) => {
+        const matchesOffice = filters.office === "Todos" || employee.escritorio === filters.office;
+        const matchesSearch = [employee.nome, employee.escritorio].join(" ").toLowerCase().includes(normalizedSearch);
+        return matchesOffice && matchesSearch;
+      }),
+    [employees, filters.office, normalizedSearch],
+  );
+  const employeesWithTotals = useMemo(
+    () =>
+      filteredEmployees.map((employee) => ({
+        ...employee,
+        totalAssigned: employee.items.reduce((sum, item) => sum + Number(item.quantity), 0),
+      })),
+    [filteredEmployees],
+  );
   const totalEmployeePages = Math.max(1, Math.ceil(filteredEmployees.length / employeesPerPage));
-  const totalAssignedItems = filteredEmployees.map((employee) => ({
-    ...employee,
-    totalAssigned: employee.items.reduce((sum, item) => sum + Number(item.quantity), 0),
-  }));
-  const paginatedEmployees = totalAssignedItems.slice((employeePage - 1) * employeesPerPage, employeePage * employeesPerPage);
+  const paginatedEmployees = useMemo(
+    () => employeesWithTotals.slice((employeePage - 1) * employeesPerPage, employeePage * employeesPerPage),
+    [employeePage, employeesWithTotals],
+  );
 
   useEffect(() => {
     setEmployeePage((current) => Math.min(current, totalEmployeePages));
   }, [totalEmployeePages]);
 
-  const selectedDetails = employees.find((item) => item.id === detailsId) ?? null;
-  const detailItemsMap = new Map<number, { equipmentId: number; name: string; quantity: number }>();
-  for (const item of selectedDetails?.items ?? []) {
-    const current = detailItemsMap.get(item.equipmentId);
-    if (current) {
-      current.quantity += Number(item.quantity);
-    } else {
-      detailItemsMap.set(item.equipmentId, {
-        equipmentId: item.equipmentId,
-        name: item.name,
-        quantity: Number(item.quantity),
-      });
+  const selectedDetails = useMemo(() => employeesById.get(detailsId) ?? null, [detailsId, employeesById]);
+  const detailItems = useMemo(() => {
+    const detailItemsMap = new Map<number, { equipmentId: number; name: string; quantity: number }>();
+    for (const item of selectedDetails?.items ?? []) {
+      const current = detailItemsMap.get(item.equipmentId);
+      if (current) {
+        current.quantity += Number(item.quantity);
+      } else {
+        detailItemsMap.set(item.equipmentId, {
+          equipmentId: item.equipmentId,
+          name: item.name,
+          quantity: Number(item.quantity),
+        });
+      }
     }
-  }
-  const detailItems = Array.from(detailItemsMap.values());
-  const selectedAssignment = detailItems.find((item) => item.equipmentId === unassign.equipmentId) ?? null;
+    return Array.from(detailItemsMap.values());
+  }, [selectedDetails]);
+  const selectedAssignment = useMemo(
+    () => detailItems.find((item) => item.equipmentId === unassign.equipmentId) ?? null,
+    [detailItems, unassign.equipmentId],
+  );
 
   async function saveEmployee(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -114,7 +139,7 @@ export default function EmployeesPage() {
 
   async function removeEmployee() {
     if (!selectedId) {
-      setError("Selecione um colaborador primeiro.");
+      notifyError("Selecione um colaborador primeiro.");
       return;
     }
 
@@ -131,14 +156,12 @@ export default function EmployeesPage() {
 
   async function unassignItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
     if (!detailsId || !selectedAssignment) {
-      setError("Selecione um item do colaborador primeiro.");
+      notifyError("Selecione um item do colaborador primeiro.");
       return;
     }
 

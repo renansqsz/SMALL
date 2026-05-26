@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
+import { useTimedNotice } from "@/components/form-toast";
 import { SectionCard } from "@/components/section-card";
 import { getJson } from "@/lib/api";
 import type { DashboardStats } from "@/lib/types";
@@ -25,6 +26,7 @@ const shortcuts = [
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { notice, showNotice } = useTimedNotice();
 
   useEffect(() => {
     let mounted = true;
@@ -48,10 +50,17 @@ export default function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
   return (
     <ProtectedPage
       title="Painel operacional"
       description="Gerencia, registre, monitore e controle os ativos de TI da empresa."
+      notice={notice}
     >
       <div className="dashboard-stack">
         {error ? <div className="message error">{error}</div> : null}
@@ -59,15 +68,15 @@ export default function DashboardPage() {
         <SectionCard title="Resumo do inventário" copy="Abaixo está um resumo do inventário de TI da empresa.">
           <div className="metrics-grid">
             <div className="metric-card">
-              <div className="metric-label">Tipos de equipamentos</div>
+              <div className="metric-label">Equipamentos Cadastrados</div>
               <div className="metric-value">{stats?.totalItems ?? "-"}</div>
             </div>
             <div className="metric-card">
-              <div className="metric-label">Em estoque</div>
+              <div className="metric-label">Equipamentos em Estoque</div>
               <div className="metric-value">{stats?.inStock ?? "-"}</div>
             </div>
             <div className="metric-card">
-              <div className="metric-label">Fora de estoque</div>
+              <div className="metric-label">Equipamentos sem Uso</div>
               <div className="metric-value">{stats?.outOfStock ?? "-"}</div>
             </div>
             <div className="metric-card">
@@ -75,7 +84,7 @@ export default function DashboardPage() {
               <div className="metric-value">{stats?.totalEmployees ?? "-"}</div>
             </div>
             <div className="metric-card">
-              <div className="metric-label">Portáteis</div>
+              <div className="metric-label">Notebooks</div>
               <div className="metric-value">{stats?.totalNotebooks ?? "-"}</div>
             </div>
             <div className="metric-card">

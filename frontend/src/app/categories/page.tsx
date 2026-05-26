@@ -6,6 +6,7 @@ import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
 import { useTimedNotice } from "@/components/form-toast";
 import { ApiError, deleteJson, getJson, postJson } from "@/lib/api";
+import { validateFormWithFeedback } from "@/lib/form-validation";
 import type { Category } from "@/lib/types";
 
 export default function CategoriesPage() {
@@ -14,6 +15,10 @@ export default function CategoriesPage() {
   const [selectedId, setSelectedId] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const { notice, showNotice } = useTimedNotice();
+
+  function notifyError(message: string) {
+    setError(message);
+  }
 
   async function loadCategories() {
     const payload = await getJson<Category[]>("/categories");
@@ -24,11 +29,15 @@ export default function CategoriesPage() {
     void loadCategories().catch(() => setError("Não foi possível carregar as categorias."));
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
   async function createCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -45,7 +54,7 @@ export default function CategoriesPage() {
 
   async function removeCategory() {
     if (!selectedId) {
-      setError("Selecione uma categoria primeiro.");
+      notifyError("Selecione uma categoria primeiro.");
       return;
     }
     setError(null);

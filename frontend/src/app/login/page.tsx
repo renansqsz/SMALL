@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ApiError, postJson } from "@/lib/api";
+import { validateFormWithFeedback } from "@/lib/form-validation";
 import { ValidationToast, useTimedNotice } from "@/components/form-toast";
-import { getSession, seedSession } from "@/lib/session";
+import { getSession, peekSession, seedSession } from "@/lib/session";
 import type { SessionResponse } from "@/lib/types";
 
 type LoginForm = {
@@ -22,12 +23,22 @@ const initialForm: LoginForm = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const cachedSession = peekSession();
   const [form, setForm] = useState<LoginForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { notice, showNotice } = useTimedNotice();
 
   useEffect(() => {
+    if (cachedSession) {
+      router.replace("/dashboard");
+      return;
+    }
+
+    if (cachedSession === null) {
+      return;
+    }
+
     let mounted = true;
 
     async function trySession() {
@@ -46,13 +57,11 @@ export default function LoginPage() {
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, [cachedSession, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -74,18 +83,27 @@ export default function LoginPage() {
     }
   }
 
+  useEffect(() => {
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
   return (
     <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Passion+One:wght@400;700;900&display=swap" rel="stylesheet" />
       <ValidationToast notice={notice} />
-      <div className="login-page">
+      <div className="login-page page-enter">
         <div>
           <div className="login-browser">
-          <div className="login-browser-dots">
-            <span />
-            <span />
-            <span />
-          </div>
-          {/* <div className="login-browser-bar">campsoft.cloud / acesso-seguro</div> */}
+            <div className="login-browser-dots">
+              <span />
+              <span />
+              <span />
+            </div>
+            {/* <div className="login-browser-bar">campsoft.cloud / acesso-seguro</div> */}
           </div>
 
           <div className="login-shell">
@@ -105,14 +123,13 @@ export default function LoginPage() {
                   </svg>
                 </div>
                 <div>
-                  <div className="brand-name">SMALL</div>
+                  <div className="brand-name login-brand-name">SMALL</div>
                   <div className="brand-copy">Acesso ao sistema de gerenciamento de Ativos de TI</div>
                 </div>
               </div>
 
               <div style={{ marginTop: "1.5rem" }}>
-                <div className="login-tag">Login corporativo</div>
-                <h1 className="login-headline">Bem-vindo de volta</h1>
+                <h1 className="login-headline">Bem-vindo.</h1>
                 <p className="login-copy">
                   Sistema de gerenciamento de Ativos de TI. Um portal mais rápido e fácil de manter.
                 </p>
@@ -120,6 +137,7 @@ export default function LoginPage() {
 
               <form className="stack" onSubmit={handleSubmit} noValidate>
                 <div className="input-group">
+                  <br></br>
                   <label htmlFor="username">Usuário</label>
                   <input
                     id="username"
@@ -151,8 +169,7 @@ export default function LoginPage() {
                   />
                   <span className="muted-link">
                     <strong>Lembrar de mim</strong>
-                    <br />
-                    Salvar meus dados de acesso para a próxima vez.
+                    <br /> Salvar meus dados de acesso para a próxima vez.
                   </span>
                 </label>
 
@@ -165,7 +182,8 @@ export default function LoginPage() {
 
               <div className="subtle-divider" />
               <div className="muted-link">
-                {/* {false && 'Ainda não tem uma conta? <strong>Cadastre-se</strong>'} */}
+                {/*
+                Linha comentada, ainda não implementada a funcionalidade de cadastro. {false && 'Ainda não tem uma conta? <strong>Cadastre-se</strong>'} */}
               </div>
               {/*  <div className="copyright">Direitos Autorais 2026. Todos os direitos reservados.</div> */}
             </section>

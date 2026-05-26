@@ -5,6 +5,10 @@ let cachedSession: SessionResponse | null | undefined;
 let pendingSession: Promise<SessionResponse | null> | null = null;
 let sessionGeneration = 0;
 
+export function peekSession(): SessionResponse | null | undefined {
+  return cachedSession;
+}
+
 export function clearSessionCache() {
   sessionGeneration += 1;
   cachedSession = undefined;

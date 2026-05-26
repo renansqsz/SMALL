@@ -26,6 +26,12 @@ def init_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
+            ON sessions (expiresAt)
+            """
+        )
 
 
 def get_connection() -> sqlite3.Connection:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
@@ -8,12 +8,13 @@ import { useTimedNotice } from "@/components/form-toast";
 import { StatusPill } from "@/components/status-pill";
 import { HistoryIcon } from "@/components/action-icons";
 import { ApiError, deleteJson, downloadFile, getJson, postJson, putJson } from "@/lib/api";
+import { validateFormWithFeedback } from "@/lib/form-validation";
 import {
   equipmentStatusTone,
   translateEquipmentStatus,
   translateMovementType,
 } from "@/lib/pt-br";
-import type { Employee, Equipment, EquipmentHistoryItem } from "@/lib/types";
+import type { EmployeeBase, Equipment, EquipmentHistoryItem } from "@/lib/types";
 
 type EquipmentForm = {
   name: string;
@@ -90,7 +91,7 @@ function groupAssignments(items: EquipmentHistoryItem[]): UnassignOption[] {
 export default function EquipmentsPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeBase[]>([]);
   const [offices, setOffices] = useState<string[]>([]);
   const [history, setHistory] = useState<EquipmentHistoryItem[]>([]);
   const [selectedEquipmentId, setSelectedEquipmentId] = useState<number>(0);
@@ -108,11 +109,16 @@ export default function EquipmentsPage() {
   const [saving, setSaving] = useState(false);
   const { notice, showNotice } = useTimedNotice();
 
+  function notifyError(message: string) {
+    setError(message);
+  }
+  const deferredSearch = useDeferredValue(filters.search);
+
   async function loadPage() {
     const [equipmentData, categoryData, employeeData, officeData] = await Promise.all([
       getJson<Equipment[]>("/equipments"),
       getJson<{ id: number; name: string }[]>("/categories"),
-      getJson<Employee[]>("/employees"),
+      getJson<EmployeeBase[]>("/employees/base"),
       getJson<string[]>("/employees/offices"),
     ]);
     setEquipments(equipmentData);
@@ -159,33 +165,63 @@ export default function EquipmentsPage() {
       location: current.location ?? "",
       entryDate: formatDate(current.entryDate),
     });
-  }, [categories, equipments, selectedEquipmentId]);
+  }, [equipments, selectedEquipmentId]);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadHistory() {
       if (!historyEquipmentId) {
-        setHistory([]);
-        setHistoryError(null);
-        setHistoryLoading(false);
+        if (mounted) {
+          setHistory([]);
+          setHistoryError(null);
+          setHistoryLoading(false);
+        }
         return;
       }
 
-      setHistoryLoading(true);
-      setHistoryError(null);
+      if (mounted) {
+        setHistoryLoading(true);
+        setHistoryError(null);
+      }
 
       try {
         const payload = await getJson<EquipmentHistoryItem[]>(`/equipments/${historyEquipmentId}/history`);
-        setHistory(payload);
+        if (mounted) {
+          setHistory(payload);
+        }
       } catch (caughtError) {
-        setHistory([]);
+        if (mounted) {
+          setHistory([]);
+        }
+        if (!mounted) {
+          return;
+        }
         setHistoryError(caughtError instanceof ApiError ? caughtError.message : "Não foi possível carregar o histórico do equipamento.");
       } finally {
-        setHistoryLoading(false);
+        if (mounted) {
+          setHistoryLoading(false);
+        }
       }
     }
 
     void loadHistory();
+    return () => {
+      mounted = false;
+    };
   }, [historyEquipmentId]);
+
+  useEffect(() => {
+    if (error) {
+      showNotice(error, { tone: "error" });
+    }
+  }, [error, showNotice]);
+
+  useEffect(() => {
+    if (historyError) {
+      showNotice(historyError, { tone: "error" });
+    }
+  }, [historyError, showNotice]);
 
   function focusAssignSection(equipmentId: number) {
     setAssignForm((current) => ({
@@ -248,14 +284,12 @@ export default function EquipmentsPage() {
 
   async function handleUnassignSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
     if (!unassignEquipment || !unassignForm.employeeId) {
-      setError("Selecione um colaborador para desatribuir o item.");
+      notifyError("Selecione um colaborador para desatribuir o item.");
       return;
     }
 
@@ -276,16 +310,16 @@ export default function EquipmentsPage() {
     }
   }
 
-  const filteredEquipments = equipments.filter((item) => {
-    const matchesSearch = [item.name, item.category, item.serialNumber, item.location]
-      .join(" ")
-      .toLowerCase()
-      .includes(filters.search.toLowerCase());
-    const matchesStatus = filters.status === "Todos" || item.status === filters.status;
-    return matchesSearch && matchesStatus;
-  });
-
-  const selectedEquipment = equipments.find((item) => item.id === selectedEquipmentId) ?? null;
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const filteredEquipments = useMemo(
+    () =>
+      equipments.filter((item) => {
+        const matchesSearch = [item.name, item.category, item.serialNumber, item.location].join(" ").toLowerCase().includes(normalizedSearch);
+        const matchesStatus = filters.status === "Todos" || item.status === filters.status;
+        return matchesSearch && matchesStatus;
+      }),
+    [equipments, filters.status, normalizedSearch],
+  );
 
   async function reloadWithMessage(nextMessage: string) {
     await loadPage();
@@ -305,9 +339,7 @@ export default function EquipmentsPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -331,7 +363,7 @@ export default function EquipmentsPage() {
 
   async function handleDelete() {
     if (!selectedEquipmentId) {
-      setError("Selecione um equipamento primeiro.");
+      notifyError("Selecione um equipamento primeiro.");
       return;
     }
 
@@ -349,9 +381,7 @@ export default function EquipmentsPage() {
 
   async function handleAssign(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!event.currentTarget.checkValidity()) {
-      showNotice("Preencha os campos obrigatorios.", { tone: "error" });
-      event.currentTarget.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus();
+    if (!validateFormWithFeedback(event.currentTarget, showNotice)) {
       return;
     }
 
@@ -359,6 +389,11 @@ export default function EquipmentsPage() {
 
     if (!assignForm.equipmentId || !assignForm.employeeId || !assignForm.office) {
       showNotice("Preencha todos os campos da atribuição antes de enviar.", { tone: "error" });
+      return;
+    }
+
+    if (selectedAssignEquipment && assignForm.quantity > Number(selectedAssignEquipment.availableQuantity)) {
+      showNotice(`Quantidade indisponivel para atribuicao. Restam ${selectedAssignEquipment.availableQuantity} unidades disponiveis.`, { tone: "error" });
       return;
     }
 
@@ -375,10 +410,18 @@ export default function EquipmentsPage() {
     }
   }
 
-  const employeesForOffice = assignForm.office
-    ? employees.filter((employee) => employee.escritorio === assignForm.office)
-    : employees;
-  const selectedUnassignOption = unassignOptions.find((item) => item.employeeId === unassignForm.employeeId) ?? null;
+  const employeesForOffice = useMemo(
+    () => (assignForm.office ? employees.filter((employee) => employee.escritorio === assignForm.office) : employees),
+    [assignForm.office, employees],
+  );
+  const selectedAssignEquipment = useMemo(
+    () => equipments.find((item) => item.id === assignForm.equipmentId) ?? null,
+    [assignForm.equipmentId, equipments],
+  );
+  const selectedUnassignOption = useMemo(
+    () => unassignOptions.find((item) => item.employeeId === unassignForm.employeeId) ?? null,
+    [unassignForm.employeeId, unassignOptions],
+  );
 
   return (
     <ProtectedPage

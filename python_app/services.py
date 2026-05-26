@@ -60,8 +60,10 @@ NEWS_FEED_URL = (
 
 
 def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(DB_PATH, timeout=5)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -128,6 +130,7 @@ def init_db() -> None:
 
     with get_connection() as connection:
         cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -250,6 +253,24 @@ def init_db() -> None:
             """
         ).fetchall()
         _seed_offices(connection, [row["office"] for row in existing_offices if row["office"]])
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_funcionarios_escritorio_nome
+            ON Funcionarios (escritorio, nome)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_equipment_assignments_employee_active
+            ON equipment_assignments (employeeId, movementType, equipmentId, id)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_equipment_assignments_equipment_history
+            ON equipment_assignments (equipmentId, createdAt DESC, id DESC)
+            """
+        )
 
 
 
@@ -371,7 +392,7 @@ def delete_employee(employee_id: int) -> None:
             raise ValueError("Funcionario nao encontrado.")
 
 
-def list_employees_with_assignments() -> list[dict[str, Any]]:
+def _employee_assignment_rows(employee_id: int | None = None) -> list[sqlite3.Row]:
     query = """
         SELECT
             f.id AS employeeId,
@@ -383,15 +404,36 @@ def list_employees_with_assignments() -> list[dict[str, Any]]:
             ea.quantity,
             ea.movementType
         FROM Funcionarios f
-        LEFT JOIN equipment_assignments ea
+        LEFT JOIN (
+            SELECT
+                MIN(id) AS id,
+                employeeId,
+                equipmentId,
+                MAX(equipmentName) AS equipmentName,
+                SUM(quantity) AS quantity,
+                'Atribuicao' AS movementType
+            FROM equipment_assignments
+            WHERE movementType = 'Atribuicao'
+            GROUP BY employeeId, equipmentId
+        ) ea
             ON f.id = ea.employeeId
-            AND ea.movementType = 'Atribuicao'
-        ORDER BY f.escritorio ASC, f.nome ASC
+    """
+    params: tuple[int, ...] = ()
+    if employee_id is not None:
+        query += " WHERE f.id = ?"
+        params = (int(employee_id),)
+    query += """
+        ORDER BY
+            f.escritorio ASC,
+            f.nome ASC,
+            ea.equipmentName ASC
     """
 
     with get_connection() as connection:
-        rows = connection.execute(query).fetchall()
+        return connection.execute(query, params).fetchall()
 
+
+def _rows_to_employee_payload(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
     employees_map: dict[int, dict[str, Any]] = {}
     for row in rows:
         employee_id = row["employeeId"]
@@ -417,9 +459,13 @@ def list_employees_with_assignments() -> list[dict[str, Any]]:
     return list(employees_map.values())
 
 
+def list_employees_with_assignments() -> list[dict[str, Any]]:
+    return _rows_to_employee_payload(_employee_assignment_rows())
+
+
 def get_employee_details(employee_id: int) -> dict[str, Any] | None:
-    employees = list_employees_with_assignments()
-    return next((employee for employee in employees if employee["id"] == int(employee_id)), None)
+    employees = _rows_to_employee_payload(_employee_assignment_rows(employee_id))
+    return employees[0] if employees else None
 
 
 def list_equipments() -> list[dict[str, Any]]:
@@ -456,9 +502,9 @@ def upsert_equipment(payload: dict[str, Any]) -> dict[str, Any]:
     if any(not field for field in required_fields):
         raise ValueError("Preencha todos os campos obrigatorios do equipamento.")
     if total_quantity < 0 or available_quantity < 0:
-        raise ValueError("Quantidades nao podem ser negativas.")
+        raise ValueError("Quantidades não podem ser negativas.")
     if available_quantity > total_quantity:
-        raise ValueError("Quantidade disponivel nao pode ser maior que a quantidade total.")
+        raise ValueError("Quantidade disponivel não pode ser maior que a quantidade total.")
 
     with get_connection() as connection:
         if equipment_id:
@@ -493,7 +539,7 @@ def upsert_equipment(payload: dict[str, Any]) -> dict[str, Any]:
                 ),
             )
             if cursor.rowcount == 0:
-                raise ValueError("Equipamento nao encontrado.")
+                raise ValueError("Equipamento não encontrado.")
             return {"id": int(equipment_id), **payload, "status": status}
 
         cursor = connection.execute(
@@ -547,7 +593,7 @@ def delete_equipment(equipment_id: int) -> None:
             (int(equipment_id),),
         )
         if cursor.rowcount == 0:
-            raise ValueError("Equipamento nao encontrado.")
+            raise ValueError("Equipamento não encontrado.")
 
 
 def list_notebooks() -> list[dict[str, Any]]:
@@ -603,8 +649,8 @@ def upsert_notebook(payload: dict[str, Any]) -> dict[str, Any]:
     missing = [field for field in required_fields if not fields[field]]
     if missing:
         raise ValueError("Preencha todos os campos obrigatorios do notebook.")
-    if fields["ramTotal"] <= 0 or fields["ramSticks"] <= 0:
-        raise ValueError("RAM total e quantidade de pentes devem ser maiores que zero.")
+    if fields["ramTotal"] < 0 or fields["ramSticks"] < 0:
+        raise ValueError("RAM total e quantidade de pentes nao podem ser negativos.")
 
     with get_connection() as connection:
         if notebook_id:
@@ -647,7 +693,7 @@ def upsert_notebook(payload: dict[str, Any]) -> dict[str, Any]:
                 ),
             )
             if cursor.rowcount == 0:
-                raise ValueError("Notebook nao encontrado.")
+                raise ValueError("Notebook não encontrado.")
             return {"id": int(notebook_id), **fields}
 
         cursor = connection.execute(
@@ -697,7 +743,7 @@ def delete_notebook(notebook_id: int) -> None:
             (int(notebook_id),),
         )
         if cursor.rowcount == 0:
-            raise ValueError("Notebook nao encontrado.")
+            raise ValueError("Notebook não encontrado.")
 
 
 def assign_equipment(equipment_id: int, employee_id: int, quantity: int, office: str) -> dict[str, Any]:
@@ -713,7 +759,7 @@ def assign_equipment(equipment_id: int, employee_id: int, quantity: int, office:
     if quantity <= 0:
         raise ValueError("Quantidade invalida.")
     if not office:
-        raise ValueError("Escritorio obrigatorio.")
+        raise ValueError("Escritório obrigatório.")
 
     with get_connection() as connection:
         cursor = connection.cursor()
@@ -724,20 +770,20 @@ def assign_equipment(equipment_id: int, employee_id: int, quantity: int, office:
                 (equipment_id,),
             ).fetchone()
             if not equipment:
-                raise ValueError("Equipamento nao encontrado.")
+                raise ValueError("Equipamento não encontrado.")
 
             employee = cursor.execute(
                 "SELECT id, nome, escritorio FROM Funcionarios WHERE id = ?",
                 (employee_id,),
             ).fetchone()
             if not employee:
-                raise ValueError("Funcionario nao encontrado.")
+                raise ValueError("Funcionario não encontrado.")
             if employee["escritorio"] != office:
-                raise ValueError("O escritorio selecionado nao corresponde ao funcionario informado.")
+                raise ValueError("O escritorio selecionado não corresponde ao funcionario informado.")
 
             available_quantity = int(equipment["availableQuantity"])
             if available_quantity < quantity:
-                raise ValueError("Quantidade indisponivel para atribuicao.")
+                raise ValueError("Quantidade indisponivel para atribuição.")
 
             next_available_quantity = available_quantity - quantity
             next_status = calculate_status(next_available_quantity)
@@ -910,21 +956,26 @@ def get_equipment_history(equipment_id: int) -> list[dict[str, Any]]:
 
 
 def get_dashboard_stats() -> dict[str, int]:
-    equipments = list_equipments()
-    employees = list_employees()
-    notebooks = list_notebooks()
-    assigned_items = sum(
-        (int(item.get("totalQuantity", 0)) - int(item.get("availableQuantity", 0)))
-        for item in equipments
-    )
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM equipments) AS totalItems,
+                (SELECT COUNT(*) FROM equipments WHERE status = 'Em estoque') AS inStock,
+                (SELECT COUNT(*) FROM equipments WHERE status = 'Em falta') AS outOfStock,
+                (SELECT COUNT(*) FROM Funcionarios) AS totalEmployees,
+                (SELECT COUNT(*) FROM notebooks) AS totalNotebooks,
+                COALESCE((SELECT SUM(totalQuantity - availableQuantity) FROM equipments), 0) AS assignedItems
+            """
+        ).fetchone()
 
     return {
-        "totalItems": len(equipments),
-        "inStock": sum(1 for item in equipments if item.get("status") == "Em estoque"),
-        "outOfStock": sum(1 for item in equipments if item.get("status") == "Em falta"),
-        "totalEmployees": len(employees),
-        "totalNotebooks": len(notebooks),
-        "assignedItems": assigned_items,
+        "totalItems": int(row["totalItems"]),
+        "inStock": int(row["inStock"]),
+        "outOfStock": int(row["outOfStock"]),
+        "totalEmployees": int(row["totalEmployees"]),
+        "totalNotebooks": int(row["totalNotebooks"]),
+        "assignedItems": int(row["assignedItems"]),
     }
 
 
