@@ -804,7 +804,7 @@ export default function EquipmentsPage() {
                 <button className="primary-button" type="submit" disabled={actionLoading}>
                   {actionLoading ? "Processando..." : "Confirmar desatribuição"}
                 </button>
-                <button className="danger-button" type="button" onClick={closeUnassignDialog} disabled={actionLoading}>
+                <button className="danger-button cancel-button" type="button" onClick={closeUnassignDialog} disabled={actionLoading}>
                   Cancelar
                 </button>
               </div>

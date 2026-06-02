@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ProtectedPage } from "@/components/protected-page";
 import { SectionCard } from "@/components/section-card";
@@ -14,6 +14,7 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<number>(0);
+  const [listOrder, setListOrder] = useState<"id" | "name">("id");
   const [error, setError] = useState<string | null>(null);
   const { notice, showNotice } = useTimedNotice();
 
@@ -35,6 +36,16 @@ export default function CategoriesPage() {
       showNotice(error, { tone: "error" });
     }
   }, [error, showNotice]);
+
+  const orderedCategories = useMemo(() => {
+    const nextCategories = [...categories];
+
+    if (listOrder === "name") {
+      return nextCategories.sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+    }
+
+    return nextCategories.sort((left, right) => left.id - right.id);
+  }, [categories, listOrder]);
 
   async function createCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,16 +90,29 @@ export default function CategoriesPage() {
 
       <div className="split-grid">
         <SectionCard title="Categorias atuais" copy="As categorias de inventário são servidas diretamente pela camada FastAPI.">
+          <div className="input-group" style={{ marginBottom: "1rem" }}>
+            <label htmlFor="category-list-order">Listar por</label>
+            <CustomSelect
+              id="category-list-order"
+              value={listOrder}
+              onValueChange={(value) => setListOrder(value as "id" | "name")}
+              options={[
+                { value: "id", label: "ID" },
+                { value: "name", label: "Nome" },
+              ]}
+            />
+          </div>
+
           <div className="table-shell">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Name</th>
+                  <th>Nome</th>
                 </tr>
               </thead>
               <tbody>
-                {categories.map((item) => (
+                {orderedCategories.map((item) => (
                   <tr key={item.id}>
                     <td>{item.id}</td>
                     <td>{item.name}</td>
@@ -127,7 +151,7 @@ export default function CategoriesPage() {
                 onValueChange={(value) => setSelectedId(Number(value))}
                 options={[
                   { value: "0", label: "Selecione uma categoria" },
-                  ...categories.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name}` })),
+                  ...orderedCategories.map((item) => ({ value: String(item.id), label: `#${item.id} - ${item.name}` })),
                 ]}
               />
             </div>
