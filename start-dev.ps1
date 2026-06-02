@@ -11,7 +11,7 @@ if (-not (Test-Path $frontendEnv) -and (Test-Path $frontendEnvExample)) {
 
 $backendCommand = @"
 Set-Location '$root'
-uvicorn backend.app.main:app --reload --host localhost --port 8000
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 "@
 
 $frontendCommand = @"
@@ -31,5 +31,13 @@ Start-Process powershell -ArgumentList @(
     "-Command", $frontendCommand
 )
 
+$networkAddresses = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notlike "127.*" -and $_.PrefixOrigin -ne "WellKnown" } |
+    Select-Object -ExpandProperty IPAddress -Unique
+
 Write-Host "Backend:  http://localhost:8000"
 Write-Host "Frontend: http://localhost:3000"
+foreach ($address in $networkAddresses) {
+    Write-Host "Backend LAN:  http://$address`:8000"
+    Write-Host "Frontend LAN: http://$address`:3000"
+}

@@ -223,16 +223,11 @@ def init_db() -> None:
             "SELECT id FROM users WHERE username = ?",
             ("admin",),
         ).fetchone()
-        hashed_password = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode("utf-8")
         if not admin_user:
+            hashed_password = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode("utf-8")
             cursor.execute(
                 "INSERT INTO users (username, password) VALUES (?, ?)",
                 ("admin", hashed_password),
-            )
-        else:
-            cursor.execute(
-                "UPDATE users SET password = ? WHERE id = ?",
-                (hashed_password, int(admin_user["id"])),
             )
 
         categories_count = cursor.execute(

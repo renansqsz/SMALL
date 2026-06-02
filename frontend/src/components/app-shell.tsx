@@ -65,6 +65,19 @@ function DashboardIcon({ className }: { className?: string }) {
   );
 }
 
+function CalendarPageIcon({ className }: { className?: string }) {
+  return (
+    <IconShell className={className}>
+      <rect x="4.5" y="6" width="15" height="13.5" rx="2.2" />
+      <path d="M8 4.5v3" />
+      <path d="M16 4.5v3" />
+      <path d="M4.5 10h15" />
+      <path d="M8 13h3" />
+      <path d="M13 15.5h3" />
+    </IconShell>
+  );
+}
+
 function EquipmentIcon({ className }: { className?: string }) {
   return (
     <IconShell className={className}>
@@ -182,6 +195,10 @@ export function AppShell({ actions, children, description, title, user }: AppShe
       return "🌐";
     }
 
+    if (icon === "calendar") {
+      return <CalendarPageIcon className="nav-icon-svg" />;
+    }
+
     if (icon === "equipment") {
       return "🧰";
     }
@@ -294,6 +311,8 @@ export function AppShell({ actions, children, description, title, user }: AppShe
                 <span className="page-icon" aria-hidden="true">
                   {currentNav.icon === "dashboard" ? (
                     <DashboardIcon className="page-icon-svg" />
+                  ) : currentNav.icon === "calendar" ? (
+                    <CalendarPageIcon className="page-icon-svg" />
                   ) : currentNav.icon === "equipment" ? (
                     <EquipmentIcon className="page-icon-svg" />
                   ) : currentNav.icon === "notebook" ? (
@@ -330,16 +349,16 @@ export function AppShell({ actions, children, description, title, user }: AppShe
             </div>
 
             <div className="site-footer-socials">
-              <a className="site-footer-social" href="#" aria-label="Campsoft no Facebook">
+              <a className="site-footer-social" href="https://www.facebook.com/campsofthub" aria-label="Campsoft no Facebook">
                 <FooterSocialIcon type="facebook" className="button-icon-svg" />
               </a>
-              <a className="site-footer-social" href="#" aria-label="Campsoft no Instagram">
+              <a className="site-footer-social" href="https://www.instagram.com/campsofthub/" aria-label="Campsoft no Instagram">
                 <FooterSocialIcon type="instagram" className="button-icon-svg" />
               </a>
               <a className="site-footer-social" href="#" aria-label="Campsoft no GitHub">
                 <FooterSocialIcon type="github" className="button-icon-svg" />
               </a>
-              <a className="site-footer-social" href="#" aria-label="Campsoft no LinkedIn">
+              <a className="site-footer-social" href="https://www.linkedin.com/company/campsoft" aria-label="Campsoft no LinkedIn">
                 <FooterSocialIcon type="linkedin" className="button-icon-svg" />
               </a>
             </div>
@@ -355,15 +374,15 @@ export function AppShell({ actions, children, description, title, user }: AppShe
             </div>
             <div className="site-footer-column">
               <div className="site-footer-heading">Empresa</div>
-              <a href="#">Sobre</a>
-              <a href="#">Operações</a>
-              <a href="#">Times</a>
-              <a href="#">Contato</a>
+              <a href="https://campsoft.com/a-campsoft/">Sobre</a>
+              <a href="https://campsoft.com/produtos/">Operações</a>
+              <a href="https://campsoft.com/integracoes/#">Integrações</a>
+              <a href="https://campsoft.com/contato/">Contato</a>
             </div>
             <div className="site-footer-column">
               <div className="site-footer-heading">Recursos</div>
-              <a href="#">Documentação</a>
-              <a href="#">Suporte</a>
+              <a href="https://elleven.campsoft.com.br/ui/901fb9e0-80d9-4b83-8f34-2fb99c4a37cb/legacy/operations/4bab1278-1cd8-36a1-cb81-e6f06148496a">Documentação</a>
+              <a href="https://api.whatsapp.com/send/?phone=551140202139">Suporte</a>
             </div>
           </div>
         </footer>

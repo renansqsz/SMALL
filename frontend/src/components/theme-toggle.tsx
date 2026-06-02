@@ -2,42 +2,20 @@
 
 import { useEffect, useState } from "react";
 
-const THEME_STORAGE_KEY = "campsoft_theme_mode";
-
-type ThemeMode = "light" | "dark";
-
-function applyTheme(theme: ThemeMode) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  document.documentElement.dataset.theme = theme;
-}
-
-function getStoredTheme(): ThemeMode {
-  if (typeof document === "undefined") {
-    return "light";
-  }
-
-  const datasetTheme = document.documentElement.dataset.theme;
-  if (datasetTheme === "dark" || datasetTheme === "light") {
-    return datasetTheme;
-  }
-
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return storedTheme === "dark" ? "dark" : "light";
-}
+import { applyTheme, getStoredTheme, persistTheme, resolveTheme, type ThemeMode } from "@/lib/theme";
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme);
   const isDark = theme === "dark";
 
   useEffect(() => {
-    const nextTheme = getStoredTheme();
+    const nextTheme = resolveTheme();
     setTheme(nextTheme);
-    applyTheme(nextTheme);
   }, []);
 
   useEffect(() => {
     applyTheme(theme);
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    persistTheme(theme);
   }, [theme]);
 
   return (
